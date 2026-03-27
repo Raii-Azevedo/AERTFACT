@@ -63,7 +63,7 @@ st.markdown("""
 /* LOGO - CENTRALIZAÇÃO PERFEITA */
 .logo-container {
     text-align: center;
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     animation: fadeInDown 0.8s ease-out;
     display: flex;
     justify-content: center;
@@ -74,7 +74,7 @@ st.markdown("""
 
 .logo-container img {
     max-width: 300px;
-    width: 50%;
+    width: 100%;
     height: auto;
     filter: drop-shadow(0 15px 25px rgba(0,0,0,0.3));
     display: block;
