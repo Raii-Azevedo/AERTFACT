@@ -35,7 +35,7 @@ st.markdown("""
 /* CONTAINER ROOT - FORÇA CENTRALIZAÇÃO */
 .block-container {
     padding: 0 !important;
-    max-width: 100% !important;
+    max-width: 50% !important;
     margin: 0 auto !important;
 }
 
