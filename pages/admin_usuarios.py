@@ -129,7 +129,7 @@ with st.container(border=True):
 
 st.divider()
 
-# ===========================================
+# ============================================
 # LISTA DE USUÁRIOS COM FOTOS
 # ============================================
 st.subheader("📋 Usuários Autorizados")
@@ -159,7 +159,17 @@ if usuarios:
         nome = usuario[2] if usuario[2] else email.split('@')[0].replace('.', ' ').title()
         avatar_base64 = usuario[3]
         added_by = usuario[4] if usuario[4] else "Sistema"
-        added_at = usuario[5][:10] if usuario[5] else "N/A"
+        
+        # CORREÇÃO: Tratamento seguro para added_at
+        added_at_raw = usuario[5]
+        if added_at_raw:
+            # Se for datetime, converter para string
+            if hasattr(added_at_raw, 'strftime'):
+                added_at = added_at_raw.strftime('%Y-%m-%d')
+            else:
+                added_at = str(added_at_raw)[:10] if len(str(added_at_raw)) >= 10 else str(added_at_raw)
+        else:
+            added_at = "N/A"
         
         with st.container(border=True):
             col1, col2, col3 = st.columns([1, 4, 2])
@@ -193,9 +203,7 @@ if usuarios:
                             st.rerun()
 else:
     st.info("Nenhum usuário cadastrado além do admin.")
-
-st.divider()
-
+    
 # ============================================
 # EDITAR PERFIL DO USUÁRIO LOGADO
 # ============================================
