@@ -44,7 +44,7 @@ st.markdown("""
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 100%;
+    width: 50%;
     min-height: 100vh;
     margin: 0;
     padding: 0;
