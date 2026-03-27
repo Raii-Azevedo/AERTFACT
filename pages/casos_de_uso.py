@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import datetime
 import sys
 import os
+import pandas as pd  
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.menu import render_sidebar
 from allowed_emails import can_edit, is_admin
@@ -321,9 +322,11 @@ if todos_casos:
     st.divider()
     st.subheader("📈 Distribuição por Contexto")
     
-    # Preparar dados para o gráfico
-    df_dist = pd.DataFrame([(c['contexto'], 1) for c in todos_casos], columns=['Contexto', 'Contagem'])
-    df_dist = df_dist.groupby('Contexto').count().reset_index()
-    df_dist = df_dist.sort_values('Contagem', ascending=False)
-    
-    st.bar_chart(df_dist.set_index('Contexto'))
+    # Preparar dados para o gráfico (com verificação se há dados)
+    if todos_casos:
+        df_dist = pd.DataFrame([(c['contexto'], 1) for c in todos_casos], columns=['Contexto', 'Contagem'])
+        df_dist = df_dist.groupby('Contexto').count().reset_index()
+        df_dist = df_dist.sort_values('Contagem', ascending=False)
+        st.bar_chart(df_dist.set_index('Contexto'))
+    else:
+        st.info("Sem dados para exibir")
