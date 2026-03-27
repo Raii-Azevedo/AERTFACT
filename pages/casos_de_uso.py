@@ -268,16 +268,31 @@ for caso in todos_casos:
 # ============================================
 st.subheader(f"📖 {len(casos_filtrados)} casos encontrados")
 
+# Estado para controlar qual caso está com detalhes abertos
+if "detalhes_abertos" not in st.session_state:
+    st.session_state.detalhes_abertos = None
+
 if casos_filtrados:
     for caso in casos_filtrados:
         with st.container(border=True):
+            # Linha principal do card
             col1, col2 = st.columns([4, 1])
             
             with col1:
                 st.markdown(f"### {caso['titulo']}")
                 st.markdown(f"**📌 Contexto:** {caso['contexto']} | **🛠️ Tecnologia:** {caso['tecnologia']}")
-                st.markdown(f"**📝 Descrição:** {caso['descricao'][:200]}..." if len(caso['descricao']) > 200 else f"**📝 Descrição:** {caso['descricao']}")
-                st.markdown(f"**🎯 Resultados:** {caso['resultado'][:150]}..." if len(caso['resultado']) > 150 else f"**🎯 Resultados:** {caso['resultado']}")
+                
+                # Descrição resumida
+                if len(caso['descricao']) > 200:
+                    st.markdown(f"**📝 Descrição:** {caso['descricao'][:200]}...")
+                else:
+                    st.markdown(f"**📝 Descrição:** {caso['descricao']}")
+                
+                # Resultados resumidos
+                if len(caso['resultado']) > 150:
+                    st.markdown(f"**🎯 Resultados:** {caso['resultado'][:150]}...")
+                else:
+                    st.markdown(f"**🎯 Resultados:** {caso['resultado']}")
                 
                 if caso['tags']:
                     st.markdown("**🏷️ Tags:** " + " ".join([f"`{tag}`" for tag in caso['tags'][:5]]))
@@ -295,21 +310,54 @@ if casos_filtrados:
                             st.error(f"Erro: {e}")
                 
                 if st.button("🔍 Ver detalhes", key=f"details_{caso['id']}"):
-                    with st.expander("📋 Detalhes completos", expanded=True):
-                        st.markdown(f"**Título:** {caso['titulo']}")
-                        st.markdown(f"**Contexto:** {caso['contexto']}")
-                        st.markdown(f"**Tecnologia:** {caso['tecnologia']}")
-                        st.markdown(f"**Descrição:** {caso['descricao']}")
-                        st.markdown(f"**Resultados:** {caso['resultado']}")
-                        st.markdown(f"**Tags:** {', '.join(caso['tags'])}")
-                        st.markdown(f"**Autor:** {caso['autor']} ({caso['autor_email']})")
-                        st.markdown(f"**Data:** {caso['data']}")
+                    st.session_state.detalhes_abertos = caso['id']
+                    st.rerun()
+            
+            # Se este caso é o que tem detalhes abertos, mostrar detalhes em tela cheia
+            if st.session_state.detalhes_abertos == caso['id']:
+                st.markdown("---")
+                with st.container(border=True):
+                    col_close, col_title = st.columns([1, 11])
+                    with col_close:
+                        if st.button("❌", key=f"close_{caso['id']}"):
+                            st.session_state.detalhes_abertos = None
+                            st.rerun()
+                    with col_title:
+                        st.markdown("### 📋 Detalhes Completos do Caso")
+                    
+                    st.markdown("---")
+                    
+                    # Organizar detalhes em colunas
+                    col_info1, col_info2 = st.columns(2)
+                    with col_info1:
+                        st.markdown(f"**📌 Título:** {caso['titulo']}")
+                        st.markdown(f"**🏷️ Contexto:** {caso['contexto']}")
+                        st.markdown(f"**🛠️ Tecnologia:** {caso['tecnologia']}")
+                    with col_info2:
+                        st.markdown(f"**👤 Autor:** {caso['autor']}")
+                        st.markdown(f"**📧 Email:** {caso['autor_email']}")
+                        st.markdown(f"**📅 Data:** {caso['data']}")
+                    
+                    st.markdown("---")
+                    
+                    st.markdown("### 📝 Descrição Completa")
+                    st.markdown(f"{caso['descricao']}")
+                    
+                    st.markdown("### 🎯 Resultados Alcançados")
+                    st.markdown(f"{caso['resultado']}")
+                    
+                    if caso['tags']:
+                        st.markdown("### 🏷️ Tags")
+                        st.markdown(" ".join([f"`{tag}`" for tag in caso['tags']]))
+                    
+                    st.markdown("---")
+                    st.caption("💡 *Este caso foi contribuído para o conhecimento do time.*")
 else:
     st.info("📭 Nenhum caso encontrado com os filtros selecionados.")
     
     if not todos_casos:
         st.info("💡 Seja o primeiro a contribuir! Clique em 'Novo Caso' para adicionar sua solução.")
-
+        
 # ============================================
 # ESTATÍSTICAS DINÂMICAS
 # ============================================
