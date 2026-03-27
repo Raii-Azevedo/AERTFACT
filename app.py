@@ -68,7 +68,7 @@ st.markdown("""
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 50%;
+    width: 100%;
     padding-left: 80px;
 }
 
