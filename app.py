@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ================== CSS ==================
+/* ================== CSS ================== */
 st.markdown("""
 <style>
 
@@ -23,36 +23,31 @@ st.markdown("""
 #MainMenu, header, footer {visibility: hidden;}
 .stApp > header {display: none;}
 
-/* BACKGROUND ANIMADO */
+/* FUNDO ESCURO SEM ANIMAÇÃO */
 .stApp {
-    background: linear-gradient(-45deg, #0f0c29, #302b63, #24243e, #1a1a40);
-    background-size: 400% 400%;
-    animation: gradientBG 12s ease infinite;
-
+    background: #0f0c29;
+    background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-/* ANIMAÇÃO FUNDO */
-@keyframes gradientBG {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-}
-
-/* CONTAINER ROOT */
+/* CONTAINER ROOT - FORÇA CENTRALIZAÇÃO */
 .block-container {
     padding: 0 !important;
     max-width: 100% !important;
+    margin: 0 auto !important;
 }
 
-/* MAIN */
+/* MAIN - CENTRALIZAÇÃO PERFEITA */
 .main-container {
     display: flex;
     justify-content: center;
     align-items: center;
     width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
 }
 
 .content-wrapper {
@@ -61,17 +56,47 @@ st.markdown("""
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    margin: 0 auto;
 }
 
-/* LOGO */
+/* LOGO - CENTRALIZAÇÃO PERFEITA */
 .logo-container {
+    text-align: center;
     margin-bottom: 2rem;
     animation: fadeInDown 0.8s ease-out;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
 }
 
 .logo-container img {
-    max-width: 220px;
+    max-width: 260px;
+    width: 100%;
+    height: auto;
     filter: drop-shadow(0 15px 25px rgba(0,0,0,0.3));
+    display: block;
+    margin: 0 auto;
+}
+
+/* Para mobile */
+@media (max-width: 768px) {
+    .logo-container img {
+        max-width: 200px;
+    }
+    
+    .title {
+        font-size: 2rem !important;
+    }
+    
+    .subtitle {
+        font-size: 0.85rem !important;
+    }
+    
+    .login-card {
+        padding: 1.5rem !important;
+    }
 }
 
 /* TITLE */
@@ -84,6 +109,7 @@ st.markdown("""
     -webkit-text-fill-color: transparent;
     margin-bottom: 0.5rem;
     animation: fadeInUp 0.8s ease-out 0.1s both;
+    width: 100%;
 }
 
 /* SUBTITLE */
@@ -93,6 +119,7 @@ st.markdown("""
     color: rgba(255,255,255,0.7);
     margin-bottom: 2rem;
     animation: fadeInUp 0.8s ease-out 0.2s both;
+    width: 100%;
 }
 
 /* CARD */
@@ -105,23 +132,28 @@ st.markdown("""
     border: 1px solid rgba(255,255,255,0.12);
     box-shadow: 0 25px 50px rgba(0,0,0,0.35);
     animation: fadeInUp 0.8s ease-out 0.3s both;
+    text-align: center;
 }
 
 /* INPUT COM ÍCONE */
 .input-container {
     position: relative;
+    width: 100%;
 }
 
 .input-container input {
     padding-left: 2.5rem !important;
+    width: 100% !important;
 }
 
 .input-icon {
     position: absolute;
     left: 12px;
-    top: 10px;
+    top: 50%;
+    transform: translateY(-50%);
     font-size: 1rem;
     opacity: 0.6;
+    z-index: 2;
 }
 
 /* INPUT */
@@ -130,11 +162,13 @@ st.markdown("""
     border-radius: 12px !important;
     border: 1px solid rgba(255,255,255,0.2) !important;
     color: white !important;
+    width: 100% !important;
 }
 
 /* BUTTON */
 .stButton {
     margin-top: 0.8rem;
+    width: 100%;
 }
 
 .stButton > button {
@@ -151,6 +185,15 @@ st.markdown("""
     box-shadow: 0 8px 20px rgba(102,126,234,0.5);
 }
 
+/* CAPTION */
+.stCaption {
+    text-align: center;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.8rem;
+    margin-top: 1rem;
+    width: 100%;
+}
+
 /* BADGES */
 .badges-container {
     margin-top: 1.5rem;
@@ -159,6 +202,7 @@ st.markdown("""
     flex-wrap: wrap;
     justify-content: center;
     opacity: 0.75;
+    width: 100%;
 }
 
 .badge {
@@ -166,17 +210,35 @@ st.markdown("""
     padding: 0.4rem 0.9rem;
     border-radius: 30px;
     font-size: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.badge:hover {
+    background: rgba(255,255,255,0.15);
+    transform: translateY(-2px);
 }
 
 /* ANIMAÇÕES */
 @keyframes fadeInUp {
-    from {opacity:0; transform:translateY(20px);}
-    to {opacity:1; transform:translateY(0);}
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes fadeInDown {
-    from {opacity:0; transform:translateY(-20px);}
-    to {opacity:1; transform:translateY(0);}
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 </style>
