@@ -1,7 +1,5 @@
 import os
-import sqlite3
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import sys
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -15,6 +13,14 @@ DATABASE_URL = os.getenv('DATABASE_URL', '')
 # Se tiver DATABASE_URL, usa PostgreSQL (Railway, Heroku, etc.)
 if DATABASE_URL:
     DB_TYPE = 'postgresql'
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        print("✅ PostgreSQL disponível")
+    except ImportError:
+        print("⚠️ psycopg2 não instalado, usando SQLite")
+        DB_TYPE = 'sqlite'
+        DATABASE_URL = ''
 
 DB_HOST = os.getenv('DB_HOST', 'localhost')
 DB_PORT = os.getenv('DB_PORT', '5432')
@@ -25,25 +31,18 @@ DB_PATH = os.getenv('DB_PATH', 'ae_knowledge.db')
 
 def get_connection():
     """Retorna uma conexão com o banco de dados"""
-    if DB_TYPE.lower() == 'postgresql':
+    if DB_TYPE.lower() == 'postgresql' and DATABASE_URL:
         try:
-            # Se tiver DATABASE_URL, usar diretamente (Railway, Heroku, etc.)
-            if DATABASE_URL:
-                conn = psycopg2.connect(DATABASE_URL)
-            else:
-                # Caso contrário, usar parâmetros individuais
-                conn = psycopg2.connect(
-                    host=DB_HOST,
-                    port=DB_PORT,
-                    database=DB_NAME,
-                    user=DB_USER,
-                    password=DB_PASSWORD
-                )
-            return conn
-        except psycopg2.Error as e:
-            print(f"Erro ao conectar ao PostgreSQL: {e}")
-            raise
-    else:  # SQLite
+            return psycopg2.connect(DATABASE_URL)
+        except Exception as e:
+            print(f"❌ Erro ao conectar PostgreSQL: {e}")
+            print("⚠️ Usando SQLite como fallback")
+            import sqlite3
+            if not os.path.exists(DB_PATH):
+                init_database()
+            return sqlite3.connect(DB_PATH)
+    else:
+        import sqlite3
         if not os.path.exists(DB_PATH):
             init_database()
         return sqlite3.connect(DB_PATH)
@@ -55,13 +54,14 @@ def return_connection(conn):
 
 def init_database():
     """Inicializa o banco de dados com todas as tabelas necessárias"""
-    if DB_TYPE.lower() == 'postgresql':
+    if DB_TYPE.lower() == 'postgresql' and DATABASE_URL:
         _init_postgresql()
     else:
         _init_sqlite()
 
 def _init_sqlite():
     """Inicializa banco SQLite"""
+    import sqlite3
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -201,12 +201,17 @@ def _init_sqlite():
     conn.close()
     print("✅ Banco de dados SQLite inicializado com sucesso!")
 
-    # Executar migração
-    migrar_banco_dados()
-
 def _init_postgresql():
     """Inicializa banco PostgreSQL"""
-    conn = get_connection()
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+    except Exception as e:
+        print(f"❌ Erro ao conectar PostgreSQL: {e}")
+        print("⚠️ Usando SQLite como fallback")
+        global DB_TYPE
+        DB_TYPE = 'sqlite'
+        return _init_sqlite()
+    
     cursor = conn.cursor()
 
     # Tabela de emails autorizados
@@ -337,94 +342,13 @@ def _init_postgresql():
     if not cursor.fetchone():
         cursor.execute("""
             INSERT INTO allowed_emails (email, role, nome, added_by)
-            VALUES ('admin@aehub.com', 'admin', 'Administrador', 'system')
-        """)
+            VALUES (%s, %s, %s, %s)
+        """, ('admin@aehub.com', 'admin', 'Administrador', 'system'))
 
     conn.commit()
     cursor.close()
     conn.close()
     print("✅ Banco de dados PostgreSQL inicializado com sucesso!")
-
-def migrar_banco_dados():
-    """Adiciona colunas faltantes nas tabelas existentes"""
-    if DB_TYPE.lower() == 'postgresql':
-        _migrar_postgresql()
-    else:
-        _migrar_sqlite()
-
-def _migrar_sqlite():
-    """Migrações para SQLite"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    # Verificar e adicionar coluna 'nome' na tabela allowed_emails
-    try:
-        cursor.execute("ALTER TABLE allowed_emails ADD COLUMN nome TEXT")
-        print("✅ Coluna 'nome' adicionada à tabela allowed_emails")
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" in str(e):
-            print("ℹ️ Coluna 'nome' já existe")
-        else:
-            print(f"⚠️ Erro ao adicionar coluna nome: {e}")
-
-    # Verificar e adicionar coluna 'avatar_url'
-    try:
-        cursor.execute("ALTER TABLE allowed_emails ADD COLUMN avatar_url TEXT")
-        print("✅ Coluna 'avatar_url' adicionada à tabela allowed_emails")
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" not in str(e):
-            print(f"⚠️ Erro ao adicionar avatar_url: {e}")
-
-    # Verificar e adicionar coluna 'avatar_file'
-    try:
-        cursor.execute("ALTER TABLE allowed_emails ADD COLUMN avatar_file TEXT")
-        print("✅ Coluna 'avatar_file' adicionada à tabela allowed_emails")
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" not in str(e):
-            print(f"⚠️ Erro ao adicionar avatar_file: {e}")
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-def _migrar_postgresql():
-    """Migrações para PostgreSQL"""
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    # Verificar e adicionar coluna 'nome'
-    try:
-        cursor.execute("""
-            ALTER TABLE allowed_emails
-            ADD COLUMN IF NOT EXISTS nome VARCHAR(255)
-        """)
-        print("✅ Coluna 'nome' adicionada/verificada na tabela allowed_emails")
-    except psycopg2.Error as e:
-        print(f"⚠️ Erro ao adicionar coluna nome: {e}")
-
-    # Verificar e adicionar coluna 'avatar_url'
-    try:
-        cursor.execute("""
-            ALTER TABLE allowed_emails
-            ADD COLUMN IF NOT EXISTS avatar_url TEXT
-        """)
-        print("✅ Coluna 'avatar_url' adicionada/verificada na tabela allowed_emails")
-    except psycopg2.Error as e:
-        print(f"⚠️ Erro ao adicionar avatar_url: {e}")
-
-    # Verificar e adicionar coluna 'avatar_file'
-    try:
-        cursor.execute("""
-            ALTER TABLE allowed_emails
-            ADD COLUMN IF NOT EXISTS avatar_file TEXT
-        """)
-        print("✅ Coluna 'avatar_file' adicionada/verificada na tabela allowed_emails")
-    except psycopg2.Error as e:
-        print(f"⚠️ Erro ao adicionar avatar_file: {e}")
-
-    conn.commit()
-    cursor.close()
-    conn.close()
 
 # ============================================
 # FUNÇÕES PARA GERENCIAR USUÁRIOS COM AVATAR
@@ -436,11 +360,10 @@ def adicionar_usuario_com_avatar(email, role='viewer', nome=None, avatar_file=No
         conn = get_connection()
         cursor = conn.cursor()
         
-        # Se não forneceu nome, extrair do email
         if not nome:
             nome = email.split('@')[0].replace('.', ' ').title()
         
-        if DB_TYPE.lower() == 'postgresql':
+        if DB_TYPE == 'postgresql':
             cursor.execute("""
                 INSERT INTO allowed_emails (email, role, nome, avatar_file, added_by)
                 VALUES (%s, %s, %s, %s, %s)
@@ -462,16 +385,6 @@ def adicionar_usuario_com_avatar(email, role='viewer', nome=None, avatar_file=No
         conn.commit()
         cursor.close()
         return_connection(conn)
-        
-        # Clear cache
-        try:
-            from allowed_emails import is_email_allowed, get_user_role, get_all_allowed_emails
-            is_email_allowed.clear()
-            get_user_role.clear()
-            get_all_allowed_emails.clear()
-        except:
-            pass
-        
         return True
     except Exception as e:
         print(f"Erro ao adicionar usuário: {e}")
@@ -481,7 +394,7 @@ def get_avatar_url(email):
     """Retorna o caminho do arquivo de avatar do usuário"""
     conn = get_connection()
     cursor = conn.cursor()
-    if DB_TYPE.lower() == 'postgresql':
+    if DB_TYPE == 'postgresql':
         cursor.execute("SELECT avatar_file FROM allowed_emails WHERE email = %s", (email,))
     else:
         cursor.execute("SELECT avatar_file FROM allowed_emails WHERE email = ?", (email,))
@@ -494,7 +407,7 @@ def get_nome_usuario(email):
     """Retorna o nome do usuário"""
     conn = get_connection()
     cursor = conn.cursor()
-    if DB_TYPE.lower() == 'postgresql':
+    if DB_TYPE == 'postgresql':
         cursor.execute("SELECT nome FROM allowed_emails WHERE email = %s", (email,))
     else:
         cursor.execute("SELECT nome FROM allowed_emails WHERE email = ?", (email,))
@@ -504,14 +417,13 @@ def get_nome_usuario(email):
     
     if result and result[0]:
         return result[0]
-    else:
-        return email.split('@')[0].replace('.', ' ').title()
+    return email.split('@')[0].replace('.', ' ').title()
 
 def atualizar_avatar_usuario(email, avatar_file):
     """Atualiza o avatar de um usuário"""
     conn = get_connection()
     cursor = conn.cursor()
-    if DB_TYPE.lower() == 'postgresql':
+    if DB_TYPE == 'postgresql':
         cursor.execute("UPDATE allowed_emails SET avatar_file = %s WHERE email = %s", (avatar_file, email))
     else:
         cursor.execute("UPDATE allowed_emails SET avatar_file = ? WHERE email = ?", (avatar_file, email))
@@ -554,7 +466,6 @@ def importar_materiais_do_excel(excel_path=None):
     try:
         import pandas as pd
         
-        # Definir caminhos possíveis
         if excel_path is None:
             possiveis_caminhos = [
                 "assets/2. Analytics Engineering - List of Reference Materials.xlsx",
@@ -569,14 +480,10 @@ def importar_materiais_do_excel(excel_path=None):
                     break
             
             if excel_path is None:
-                print("❌ Arquivo Excel não encontrado nos caminhos:")
-                for caminho in possiveis_caminhos:
-                    print(f"   - {caminho}")
+                print("❌ Arquivo Excel não encontrado")
                 return False
         
         print(f"📖 Lendo arquivo: {excel_path}")
-        
-        # Ler o arquivo Excel
         df = pd.read_excel(excel_path, sheet_name="Content Library")
         
         conn = get_connection()
@@ -592,15 +499,14 @@ def importar_materiais_do_excel(excel_path=None):
                 url = titulo if "http" in titulo else ""
                 autor = str(row['Created by']) if pd.notna(row['Created by']) else "Sistema"
                 
-                # Verificar se já existe
-                if DB_TYPE.lower() == 'postgresql':
+                if DB_TYPE == 'postgresql':
                     cursor.execute("SELECT id FROM materiais WHERE titulo = %s", (titulo,))
                 else:
                     cursor.execute("SELECT id FROM materiais WHERE titulo = ?", (titulo,))
                 existe = cursor.fetchone()
                 
                 if not existe:
-                    if DB_TYPE.lower() == 'postgresql':
+                    if DB_TYPE == 'postgresql':
                         cursor.execute("""
                             INSERT INTO materiais (titulo, tipo, topicos, descricao, url, autor, autor_email)
                             VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -615,13 +521,11 @@ def importar_materiais_do_excel(excel_path=None):
         conn.commit()
         cursor.close()
         return_connection(conn)
-        print(f"✅ Importados {contador} novos materiais do Excel")
+        print(f"✅ Importados {contador} novos materiais")
         return True
         
     except Exception as e:
         print(f"❌ Erro ao importar materiais: {e}")
-        import traceback
-        traceback.print_exc()
         return False
 
 # ============================================
@@ -636,7 +540,7 @@ def salvar_ae_mes_historico(email, nome, pontuacao, contribuicoes, definido_por)
     mes = datetime.now().month
     ano = datetime.now().year
     
-    if DB_TYPE.lower() == 'postgresql':
+    if DB_TYPE == 'postgresql':
         cursor.execute("""
             INSERT INTO ae_mes_historico (email, nome, mes, ano, pontuacao, contribuicoes, definido_por)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -669,5 +573,8 @@ def get_historico_ae_mes():
     return_connection(conn)
     return resultados
 
-# Inicializar banco ao importar
+# ============================================
+# INICIALIZAR BANCO
+# ============================================
 init_database()
+print(f"✅ Banco inicializado - Modo: {DB_TYPE.upper()}")
