@@ -258,7 +258,7 @@ with tab4:
             - Cores neon ou muito vibrantes
             - Gráficos 3D sem necessidade
             - Rolagem horizontal excessiva
-            - Mais de 5 categorias em gráficos de pizza
+            - Mais de 2 categorias em gráficos de pizza
             - Elementos não interativos sem explicação
             """)
     
