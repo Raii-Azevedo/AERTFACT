@@ -6,7 +6,7 @@ from utils.menu import render_sidebar
 import pandas as pd
 from datetime import datetime
 from allowed_emails import can_edit, is_admin
-from database import get_connection, return_connection
+from database import get_connection, return_connection, DB_TYPE
 
 # Verificar autenticação
 if not st.session_state.get("authenticated", False):
@@ -26,6 +26,10 @@ render_sidebar()
 user_email = st.session_state.get("user_email", "")
 can_edit_content = can_edit(user_email)
 is_admin_user = is_admin(user_email)
+
+# Função para pegar o placeholder correto
+def get_placeholder():
+    return '%s' if DB_TYPE == 'postgresql' else '?'
 
 st.title("📚 Biblioteca de Materiais de Referência")
 st.markdown("""
@@ -125,9 +129,12 @@ if st.session_state.get("show_material_form", False) and can_edit_content:
                 try:
                     conn = get_connection()
                     cursor = conn.cursor()
-                    cursor.execute("""
+                    placeholder = get_placeholder()
+                    
+                    # CORREÇÃO: usar o placeholder correto para cada banco
+                    cursor.execute(f"""
                         INSERT INTO materiais (titulo, tipo, topicos, descricao, url, autor, autor_email)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
                     """, (titulo, tipo, topicos, descricao, url, autor, user_email))
                     conn.commit()
                     cursor.close()
@@ -147,21 +154,22 @@ if st.session_state.get("show_material_form", False) and can_edit_content:
 # ============================================
 conn = get_connection()
 cursor = conn.cursor()
+placeholder = get_placeholder()
 
 # Construir query com filtros
 query = "SELECT * FROM materiais WHERE 1=1"
 params = []
 
 if busca_texto:
-    query += " AND (titulo LIKE ? OR descricao LIKE ?)"
+    query += f" AND (titulo LIKE {placeholder} OR descricao LIKE {placeholder})"
     params.extend([f"%{busca_texto}%", f"%{busca_texto}%"])
 
 if tipo_filtro != "Todos":
-    query += " AND tipo = ?"
+    query += f" AND tipo = {placeholder}"
     params.append(tipo_filtro)
 
 if topico_filtro != "Todos":
-    query += " AND topicos LIKE ?"
+    query += f" AND topicos LIKE {placeholder}"
     params.append(f"%{topico_filtro}%")
 
 # Ordenação
@@ -210,7 +218,7 @@ for material in materiais:
     descricao = material[4] or ""
     url = material[5] or ""
     autor = material[6] or "Desconhecido"
-    data_criacao = material[8][:10] if material[8] else "N/A"
+    data_criacao = str(material[8])[:10] if material[8] else "N/A"
     
     # Ícone baseado no tipo
     icone = {
@@ -244,7 +252,8 @@ for material in materiais:
                     try:
                         conn = get_connection()
                         cursor = conn.cursor()
-                        cursor.execute("DELETE FROM materiais WHERE id = ?", (material_id,))
+                        placeholder_del = get_placeholder()
+                        cursor.execute(f"DELETE FROM materiais WHERE id = {placeholder_del}", (material_id,))
                         conn.commit()
                         cursor.close()
                         return_connection(conn)
@@ -255,8 +264,7 @@ for material in materiais:
             
             # Botão para copiar link
             if url:
-                st.button("📋 Copiar Link", key=f"copy_{material_id}", 
-                         on_click=lambda: st.info("Link copiado!"))
+                st.button("📋 Copiar Link", key=f"copy_{material_id}")
         
         # Formulário de edição (se ativado)
         if can_edit_content and st.session_state.get(f"edit_material_{material_id}", False):
@@ -276,10 +284,12 @@ for material in materiais:
                         try:
                             conn = get_connection()
                             cursor = conn.cursor()
-                            cursor.execute("""
+                            placeholder_edit = get_placeholder()
+                            cursor.execute(f"""
                                 UPDATE materiais 
-                                SET titulo = ?, tipo = ?, topicos = ?, descricao = ?, url = ?, data_atualizacao = CURRENT_TIMESTAMP
-                                WHERE id = ?
+                                SET titulo = {placeholder_edit}, tipo = {placeholder_edit}, topicos = {placeholder_edit}, 
+                                    descricao = {placeholder_edit}, url = {placeholder_edit}, data_atualizacao = CURRENT_TIMESTAMP
+                                WHERE id = {placeholder_edit}
                             """, (novo_titulo, novo_tipo, novos_topicos, nova_descricao, nova_url, material_id))
                             conn.commit()
                             cursor.close()
