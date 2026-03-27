@@ -72,8 +72,8 @@ st.markdown("""
 }
 
 .logo-container img {
-    max-width: 260px;
-    width: 100%;
+    max-width: 300px;
+    width: 50%;
     height: auto;
     filter: drop-shadow(0 15px 25px rgba(0,0,0,0.3));
     display: block;
