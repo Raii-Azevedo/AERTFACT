@@ -161,18 +161,26 @@ with tab_atual:
             cursor.close()
             return_connection(conn)
             
-            avatar_file = dados[0] if dados else None
+            avatar_base64 = dados[0] if dados else None
             nome_usuario = dados[1] if dados else ae_mes['nome']
             
             # Mostrar avatar
-            if avatar_file:
+            if avatar_base64:
                 try:
-                    st.image(avatar_file, width=200, caption=nome_usuario)
-                except:
+                    # Se for base64, criar data URL
+                    if avatar_base64.startswith('data:image'):
+                        st.image(avatar_base64, width=200, caption=nome_usuario)
+                    else:
+                        # Se for base64 puro
+                        st.image(f"data:image/png;base64,{avatar_base64}", width=200, caption=nome_usuario)
+                except Exception as e:
+                    print(f"Erro ao exibir avatar: {e}")
+                    # Fallback para Gravatar
                     email_hash = hashlib.md5(ae_mes['email'].encode()).hexdigest()
                     avatar_url = f"https://www.gravatar.com/avatar/{email_hash}?d=identicon&s=200"
                     st.image(avatar_url, width=200, caption=nome_usuario)
             else:
+                # Fallback para Gravatar
                 email_hash = hashlib.md5(ae_mes['email'].encode()).hexdigest()
                 avatar_url = f"https://www.gravatar.com/avatar/{email_hash}?d=identicon&s=200"
                 st.image(avatar_url, width=200, caption=nome_usuario)
@@ -227,7 +235,7 @@ with tab_ranking:
         for idx, rank in enumerate(ranking_com_contrib[:10]):
             badge = ["🥇", "🥈", "🥉", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐", "⭐"][idx] if idx < 10 else "📌"
             
-            # Buscar avatar
+            # Buscar avatar do banco
             conn = get_connection()
             cursor = conn.cursor()
             placeholder = get_placeholder()
@@ -235,16 +243,19 @@ with tab_ranking:
             dados = cursor.fetchone()
             cursor.close()
             return_connection(conn)
-            avatar_file = dados[0] if dados else None
+            avatar_base64 = dados[0] if dados else None
             
             col1, col2, col3, col4, col5 = st.columns([1, 4, 2, 2, 2])
             with col1:
                 st.markdown(f"### {badge}")
             with col2:
                 # Mostrar avatar pequeno
-                if avatar_file:
+                if avatar_base64:
                     try:
-                        st.image(avatar_file, width=40)
+                        if avatar_base64.startswith('data:image'):
+                            st.image(avatar_base64, width=40)
+                        else:
+                            st.image(f"data:image/png;base64,{avatar_base64}", width=40)
                     except:
                         email_hash = hashlib.md5(rank['email'].encode()).hexdigest()
                         avatar_url = f"https://www.gravatar.com/avatar/{email_hash}?d=identicon&s=40"
@@ -263,7 +274,7 @@ with tab_ranking:
                 st.markdown(f"📊 {rank['detalhes']['casos']}C / {rank['detalhes']['videos']}V / {rank['detalhes']['snippets']}S")
             
             # Barra de progresso
-            max_pontos = ranking_com_contrib[0]['pontos']
+            max_pontos = ranking_com_contrib[0]['pontos'] if ranking_com_contrib else 1
             st.progress(min(rank['pontos'] / max_pontos, 1.0))
     else:
         st.info("📊 Nenhuma contribuição registrada ainda. Comece a contribuir para aparecer no ranking!")
