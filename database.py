@@ -573,6 +573,80 @@ def get_historico_ae_mes():
     return_connection(conn)
     return resultados
 
+    # ============================================
+    # TABELAS DO ROADMAP
+    # ============================================
+    
+    # Tabela de progresso dos pilares
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS roadmap_progresso (
+            id SERIAL PRIMARY KEY,
+            pilar TEXT NOT NULL,
+            progresso INTEGER NOT NULL,
+            meta TEXT,
+            atualizado_por TEXT,
+            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Tabela de entregas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS roadmap_entregas (
+            id SERIAL PRIMARY KEY,
+            titulo TEXT NOT NULL,
+            responsavel TEXT NOT NULL,
+            prazo TEXT NOT NULL,
+            prioridade TEXT NOT NULL,
+            status TEXT DEFAULT 'pendente',
+            criado_por TEXT,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Tabela de fases do cronograma
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS roadmap_fases (
+            id SERIAL PRIMARY KEY,
+            fase TEXT NOT NULL,
+            status TEXT NOT NULL,
+            data_prevista TEXT NOT NULL,
+            entregas TEXT,
+            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Inserir dados iniciais se não existirem
+    cursor.execute("SELECT COUNT(*) FROM roadmap_progresso")
+    if cursor.fetchone()[0] == 0:
+        progressos_iniciais = [
+            ("Pilar A: Casos de Uso", 75, "50 casos até Jun/25", "system"),
+            ("Pilar B: Boas Práticas", 60, "8 checklists completos", "system"),
+            ("Pilar C: Stack de Ferramentas", 85, "50+ ferramentas catalogadas", "system"),
+            ("Pilar D: Biblioteca", 40, "200+ materiais catalogados", "system"),
+            ("Pilar E: Treinamento", 35, "20 pílulas + playlist", "system"),
+            ("Pilar F: Gamificação", 70, "Sistema de pontos e badges", "system")
+        ]
+        for pilar, prog, meta, autor in progressos_iniciais:
+            cursor.execute("""
+                INSERT INTO roadmap_progresso (pilar, progresso, meta, atualizado_por)
+                VALUES (%s, %s, %s, %s)
+            """, (pilar, prog, meta, autor))
+    
+    cursor.execute("SELECT COUNT(*) FROM roadmap_fases")
+    if cursor.fetchone()[0] == 0:
+        fases_iniciais = [
+            ("Fase 1: Crowdsourcing", "✅ Concluído", "26/03/2025", "18 cases coletados"),
+            ("Fase 2: Curadoria", "🔄 Em andamento", "Abril 2025", "Categorização com IA, agrupamento por temas"),
+            ("Fase 3: Documentação", "📝 Planejada", "Maio 2025", "Consolidação do Guia de Estilo, templates"),
+            ("Fase 4: Biblioteca", "🚀 Iniciada", "Junho 2025", "Importação de 100+ materiais, busca integrada"),
+            ("Fase 5: Gamificação", "📅 Agendada", "Julho 2025", "Sistema de pontos, badges, ranking")
+        ]
+        for fase, status, data, entregas in fases_iniciais:
+            cursor.execute("""
+                INSERT INTO roadmap_fases (fase, status, data_prevista, entregas)
+                VALUES (%s, %s, %s, %s)
+            """, (fase, status, data, entregas))
+
 # ============================================
 # INICIALIZAR BANCO
 # ============================================
