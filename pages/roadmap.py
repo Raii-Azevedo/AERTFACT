@@ -38,48 +38,92 @@ st.markdown("""
 # FUNÇÕES PARA GERENCIAR DADOS DO ROADMAP
 # ============================================
 
+def get_db_placeholder():
+    """Retorna o placeholder correto para cada banco"""
+    from database import DB_TYPE
+    return '%s' if DB_TYPE == 'postgresql' else '?'
+
 def init_roadmap_tables():
     """Cria as tabelas necessárias para o roadmap"""
     conn = get_connection()
     cursor = conn.cursor()
+    from database import DB_TYPE
     
     # Tabela de progresso dos pilares
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS roadmap_progresso (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pilar TEXT NOT NULL,
-            progresso INTEGER NOT NULL,
-            meta TEXT,
-            atualizado_por TEXT,
-            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+    if DB_TYPE == 'postgresql':
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS roadmap_progresso (
+                id SERIAL PRIMARY KEY,
+                pilar TEXT NOT NULL,
+                progresso INTEGER NOT NULL,
+                meta TEXT,
+                atualizado_por TEXT,
+                data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS roadmap_progresso (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                pilar TEXT NOT NULL,
+                progresso INTEGER NOT NULL,
+                meta TEXT,
+                atualizado_por TEXT,
+                data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
     
     # Tabela de entregas
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS roadmap_entregas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
-            responsavel TEXT NOT NULL,
-            prazo TEXT NOT NULL,
-            prioridade TEXT NOT NULL,
-            status TEXT DEFAULT 'pendente',
-            criado_por TEXT,
-            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+    if DB_TYPE == 'postgresql':
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS roadmap_entregas (
+                id SERIAL PRIMARY KEY,
+                titulo TEXT NOT NULL,
+                responsavel TEXT NOT NULL,
+                prazo TEXT NOT NULL,
+                prioridade TEXT NOT NULL,
+                status TEXT DEFAULT 'pendente',
+                criado_por TEXT,
+                data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS roadmap_entregas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                titulo TEXT NOT NULL,
+                responsavel TEXT NOT NULL,
+                prazo TEXT NOT NULL,
+                prioridade TEXT NOT NULL,
+                status TEXT DEFAULT 'pendente',
+                criado_por TEXT,
+                data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
     
     # Tabela de fases do cronograma
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS roadmap_fases (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fase TEXT NOT NULL,
-            status TEXT NOT NULL,
-            data_prevista TEXT NOT NULL,
-            entregas TEXT,
-            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
+    if DB_TYPE == 'postgresql':
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS roadmap_fases (
+                id SERIAL PRIMARY KEY,
+                fase TEXT NOT NULL,
+                status TEXT NOT NULL,
+                data_prevista TEXT NOT NULL,
+                entregas TEXT,
+                data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS roadmap_fases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fase TEXT NOT NULL,
+                status TEXT NOT NULL,
+                data_prevista TEXT NOT NULL,
+                entregas TEXT,
+                data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
     
     # Inserir dados iniciais se estiver vazio
     cursor.execute("SELECT COUNT(*) FROM roadmap_progresso")
@@ -92,11 +136,18 @@ def init_roadmap_tables():
             ("Pilar E: Treinamento", 35, "20 pílulas + playlist"),
             ("Pilar F: Gamificação", 70, "Sistema de pontos e badges")
         ]
+        placeholder = get_db_placeholder()
         for pilar, prog, meta in progressos_iniciais:
-            cursor.execute("""
-                INSERT INTO roadmap_progresso (pilar, progresso, meta, atualizado_por)
-                VALUES (?, ?, ?, ?)
-            """, (pilar, prog, meta, "system"))
+            if DB_TYPE == 'postgresql':
+                cursor.execute("""
+                    INSERT INTO roadmap_progresso (pilar, progresso, meta, atualizado_por)
+                    VALUES (%s, %s, %s, %s)
+                """, (pilar, prog, meta, "system"))
+            else:
+                cursor.execute("""
+                    INSERT INTO roadmap_progresso (pilar, progresso, meta, atualizado_por)
+                    VALUES (?, ?, ?, ?)
+                """, (pilar, prog, meta, "system"))
     
     cursor.execute("SELECT COUNT(*) FROM roadmap_fases")
     if cursor.fetchone()[0] == 0:
@@ -108,10 +159,16 @@ def init_roadmap_tables():
             ("Fase 5: Gamificação", "📅 Agendada", "Julho 2025", "Sistema de pontos, badges, ranking")
         ]
         for fase, status, data, entregas in fases_iniciais:
-            cursor.execute("""
-                INSERT INTO roadmap_fases (fase, status, data_prevista, entregas)
-                VALUES (?, ?, ?, ?)
-            """, (fase, status, data, entregas))
+            if DB_TYPE == 'postgresql':
+                cursor.execute("""
+                    INSERT INTO roadmap_fases (fase, status, data_prevista, entregas)
+                    VALUES (%s, %s, %s, %s)
+                """, (fase, status, data, entregas))
+            else:
+                cursor.execute("""
+                    INSERT INTO roadmap_fases (fase, status, data_prevista, entregas)
+                    VALUES (?, ?, ?, ?)
+                """, (fase, status, data, entregas))
     
     conn.commit()
     cursor.close()
@@ -131,11 +188,20 @@ def atualizar_progresso(pilar, novo_progresso, user_email):
     """Atualiza o progresso de um pilar"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE roadmap_progresso 
-        SET progresso = ?, atualizado_por = ?, data_atualizacao = CURRENT_TIMESTAMP
-        WHERE pilar = ?
-    """, (novo_progresso, user_email, pilar))
+    from database import DB_TYPE
+    
+    if DB_TYPE == 'postgresql':
+        cursor.execute("""
+            UPDATE roadmap_progresso 
+            SET progresso = %s, atualizado_por = %s, data_atualizacao = CURRENT_TIMESTAMP
+            WHERE pilar = %s
+        """, (novo_progresso, user_email, pilar))
+    else:
+        cursor.execute("""
+            UPDATE roadmap_progresso 
+            SET progresso = ?, atualizado_por = ?, data_atualizacao = CURRENT_TIMESTAMP
+            WHERE pilar = ?
+        """, (novo_progresso, user_email, pilar))
     conn.commit()
     cursor.close()
     return_connection(conn)
@@ -160,10 +226,18 @@ def adicionar_entrega(titulo, responsavel, prazo, prioridade, user_email):
     """Adiciona uma nova entrega"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO roadmap_entregas (titulo, responsavel, prazo, prioridade, criado_por)
-        VALUES (?, ?, ?, ?, ?)
-    """, (titulo, responsavel, prazo, prioridade, user_email))
+    from database import DB_TYPE
+    
+    if DB_TYPE == 'postgresql':
+        cursor.execute("""
+            INSERT INTO roadmap_entregas (titulo, responsavel, prazo, prioridade, criado_por)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (titulo, responsavel, prazo, prioridade, user_email))
+    else:
+        cursor.execute("""
+            INSERT INTO roadmap_entregas (titulo, responsavel, prazo, prioridade, criado_por)
+            VALUES (?, ?, ?, ?, ?)
+        """, (titulo, responsavel, prazo, prioridade, user_email))
     conn.commit()
     cursor.close()
     return_connection(conn)
@@ -172,7 +246,12 @@ def remover_entrega(entrega_id):
     """Remove uma entrega"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM roadmap_entregas WHERE id = ?", (entrega_id,))
+    from database import DB_TYPE
+    
+    if DB_TYPE == 'postgresql':
+        cursor.execute("DELETE FROM roadmap_entregas WHERE id = %s", (entrega_id,))
+    else:
+        cursor.execute("DELETE FROM roadmap_entregas WHERE id = ?", (entrega_id,))
     conn.commit()
     cursor.close()
     return_connection(conn)
@@ -181,7 +260,12 @@ def atualizar_status_entrega(entrega_id, novo_status):
     """Atualiza o status de uma entrega"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE roadmap_entregas SET status = ? WHERE id = ?", (novo_status, entrega_id))
+    from database import DB_TYPE
+    
+    if DB_TYPE == 'postgresql':
+        cursor.execute("UPDATE roadmap_entregas SET status = %s WHERE id = %s", (novo_status, entrega_id))
+    else:
+        cursor.execute("UPDATE roadmap_entregas SET status = ? WHERE id = ?", (novo_status, entrega_id))
     conn.commit()
     cursor.close()
     return_connection(conn)
@@ -200,17 +284,23 @@ def atualizar_fase(fase, novo_status, user_email):
     """Atualiza o status de uma fase"""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE roadmap_fases 
-        SET status = ?, data_atualizacao = CURRENT_TIMESTAMP
-        WHERE fase = ?
-    """, (novo_status, fase))
+    from database import DB_TYPE
+    
+    if DB_TYPE == 'postgresql':
+        cursor.execute("""
+            UPDATE roadmap_fases 
+            SET status = %s, data_atualizacao = CURRENT_TIMESTAMP
+            WHERE fase = %s
+        """, (novo_status, fase))
+    else:
+        cursor.execute("""
+            UPDATE roadmap_fases 
+            SET status = ?, data_atualizacao = CURRENT_TIMESTAMP
+            WHERE fase = ?
+        """, (novo_status, fase))
     conn.commit()
     cursor.close()
     return_connection(conn)
-
-# Inicializar tabelas
-init_roadmap_tables()
 
 # ============================================
 # SEÇÃO 1: VISÃO GERAL E OBJETIVOS
