@@ -129,7 +129,7 @@ with st.container(border=True):
 
 st.divider()
 
-# ============================================
+# ===========================================
 # LISTA DE USUÁRIOS COM FOTOS
 # ============================================
 st.subheader("📋 Usuários Autorizados")
