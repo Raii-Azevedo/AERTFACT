@@ -62,6 +62,26 @@ def get_casos_do_banco():
         })
     return casos
 
+def get_contextos_unicos():
+    """Retorna lista de contextos únicos do banco"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT contexto FROM casos_uso WHERE contexto IS NOT NULL AND contexto != ''")
+    resultados = cursor.fetchall()
+    cursor.close()
+    return_connection(conn)
+    return sorted([row[0] for row in resultados])
+
+def get_tecnologias_unicas():
+    """Retorna lista de tecnologias únicas do banco"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT DISTINCT tecnologia FROM casos_uso WHERE tecnologia IS NOT NULL AND tecnologia != ''")
+    resultados = cursor.fetchall()
+    cursor.close()
+    return_connection(conn)
+    return sorted([row[0] for row in resultados])
+
 def adicionar_caso(titulo, contexto, tecnologia, descricao, resultado, tags, autor, autor_email):
     """Adiciona um novo caso de uso"""
     conn = get_connection()
@@ -90,28 +110,44 @@ def remover_caso(caso_id):
     return_connection(conn)
 
 # ============================================
-# FILTROS
+# FILTROS DINÂMICOS BASEADOS NO BANCO
 # ============================================
 st.subheader("🔍 Filtros")
 col1, col2 = st.columns(2)
 
-# Opções para os filtros
-contextos_opcoes = ["Todos", "Performance", "Conectividade", "UX/UI", "Governança", "Segurança"]
-tecnologias_opcoes = ["Todos", "DAX", "Tabular Editor", "Python", "SQL", "Power Automate", "DAX Studio"]
+# Obter opções únicas do banco
+contextos_existentes = get_contextos_unicos()
+tecnologias_existentes = get_tecnologias_unicas()
+
+# Adicionar opção "Todos" no início
+contextos_opcoes = ["Todos"] + contextos_existentes
+tecnologias_opcoes = ["Todos"] + tecnologias_existentes
 
 with col1:
     contexto_filtro = st.multiselect(
         "Contexto",
         contextos_opcoes,
-        default=["Todos"]
+        default=["Todos"],
+        help="Selecione um ou mais contextos para filtrar"
     )
 
 with col2:
     tecnologia_filtro = st.multiselect(
         "Tecnologia",
         tecnologias_opcoes,
-        default=["Todos"]
+        default=["Todos"],
+        help="Selecione uma ou mais tecnologias para filtrar"
     )
+
+# Mostrar resumo dos filtros ativos
+filtros_ativos = []
+if "Todos" not in contexto_filtro and contexto_filtro:
+    filtros_ativos.append(f"Contexto: {', '.join(contexto_filtro)}")
+if "Todos" not in tecnologia_filtro and tecnologia_filtro:
+    filtros_ativos.append(f"Tecnologia: {', '.join(tecnologia_filtro)}")
+
+if filtros_ativos:
+    st.caption(f"🎯 Filtros ativos: {' | '.join(filtros_ativos)}")
 
 # ============================================
 # BOTÃO PARA ADICIONAR NOVO CASO
@@ -123,24 +159,45 @@ with col2:
             st.session_state.show_form = not st.session_state.show_form
 
 # ============================================
-# FORMULÁRIO PARA NOVO CASO
+# FORMULÁRIO PARA NOVO CASO (COM INPUT LIVRE)
 # ============================================
 if st.session_state.get("show_form", False) and can_edit_content:
     with st.form("novo_caso", clear_on_submit=True):
         st.subheader("📝 Adicionar Novo Caso")
         
-        titulo = st.text_input("Título do Caso*")
+        titulo = st.text_input("Título do Caso*", placeholder="ex: Otimização de performance com Python")
         
         col1, col2 = st.columns(2)
         with col1:
-            contexto = st.selectbox("Contexto*", ["Performance", "Conectividade", "UX/UI", "Governança", "Segurança"])
+            # Contexto com input livre (permite digitar qualquer valor)
+            contextos_sugeridos = contextos_existentes if contextos_existentes else ["Performance", "Conectividade", "UX/UI", "Governança", "Segurança"]
+            contexto = st.selectbox(
+                "Contexto* (ou digite um novo)", 
+                contextos_sugeridos + ["+ Adicionar novo contexto..."],
+                help="Selecione um contexto existente ou escolha a última opção para digitar um novo"
+            )
+            
+            if contexto == "+ Adicionar novo contexto...":
+                contexto = st.text_input("Digite o novo contexto", placeholder="ex: Machine Learning, Infraestrutura")
+        
         with col2:
-            tecnologia = st.selectbox("Tecnologia*", ["DAX", "Tabular Editor", "Python", "SQL", "Power Automate", "DAX Studio"])
+            # Tecnologia com input livre
+            tecnologias_sugeridas = tecnologias_existentes if tecnologias_existentes else ["DAX", "Python", "SQL", "Power BI", "Databricks"]
+            tecnologia = st.selectbox(
+                "Tecnologia* (ou digite uma nova)", 
+                tecnologias_sugeridas + ["+ Adicionar nova tecnologia..."],
+                help="Selecione uma tecnologia existente ou escolha a última opção para digitar uma nova"
+            )
+            
+            if tecnologia == "+ Adicionar nova tecnologia...":
+                tecnologia = st.text_input("Digite a nova tecnologia", placeholder="ex: Spark, Airflow, dbt")
         
-        descricao = st.text_area("Descrição da Solução*", height=100)
-        resultado = st.text_area("Resultados Alcançados*", height=100)
+        descricao = st.text_area("Descrição da Solução*", height=100, 
+                                  placeholder="Descreva o problema enfrentado e como foi abordado...")
+        resultado = st.text_area("Resultados Alcançados*", height=100,
+                                  placeholder="Quais foram os benefícios? Redução de tempo? Melhoria de performance?")
         
-        tags_input = st.text_input("Tags (separadas por vírgula)", placeholder="ex: otimização, performance, dax")
+        tags_input = st.text_input("Tags (separadas por vírgula)", placeholder="ex: otimização, performance, python")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -151,7 +208,7 @@ if st.session_state.get("show_form", False) and can_edit_content:
                 st.rerun()
         
         if submitted:
-            if titulo and descricao and resultado:
+            if titulo and descricao and resultado and contexto and tecnologia:
                 try:
                     tags_list = [t.strip() for t in tags_input.split(',')] if tags_input else []
                     adicionar_caso(titulo, contexto, tecnologia, descricao, resultado, tags_list, user_name, user_email)
@@ -161,7 +218,7 @@ if st.session_state.get("show_form", False) and can_edit_content:
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
             else:
-                st.warning("⚠️ Preencha título, descrição e resultados")
+                st.warning("⚠️ Preencha todos os campos obrigatórios (título, contexto, tecnologia, descrição e resultados)")
     
     st.divider()
 
@@ -196,8 +253,8 @@ if casos_filtrados:
             with col1:
                 st.markdown(f"### {caso['titulo']}")
                 st.markdown(f"**📌 Contexto:** {caso['contexto']} | **🛠️ Tecnologia:** {caso['tecnologia']}")
-                st.markdown(f"**📝 Descrição:** {caso['descricao']}")
-                st.markdown(f"**🎯 Resultados:** {caso['resultado']}")
+                st.markdown(f"**📝 Descrição:** {caso['descricao'][:200]}..." if len(caso['descricao']) > 200 else f"**📝 Descrição:** {caso['descricao']}")
+                st.markdown(f"**🎯 Resultados:** {caso['resultado'][:150]}..." if len(caso['resultado']) > 150 else f"**🎯 Resultados:** {caso['resultado']}")
                 
                 if caso['tags']:
                     st.markdown("**🏷️ Tags:** " + " ".join([f"`{tag}`" for tag in caso['tags'][:5]]))
@@ -231,7 +288,7 @@ else:
         st.info("💡 Seja o primeiro a contribuir! Clique em 'Novo Caso' para adicionar sua solução.")
 
 # ============================================
-# ESTATÍSTICAS
+# ESTATÍSTICAS DINÂMICAS
 # ============================================
 if todos_casos:
     st.divider()
@@ -259,3 +316,14 @@ if todos_casos:
     with col4:
         contribuidores = len(set(caso['autor'] for caso in todos_casos))
         st.metric("👥 Contribuidores", contribuidores)
+    
+    # Gráfico de distribuição de contextos
+    st.divider()
+    st.subheader("📈 Distribuição por Contexto")
+    
+    # Preparar dados para o gráfico
+    df_dist = pd.DataFrame([(c['contexto'], 1) for c in todos_casos], columns=['Contexto', 'Contagem'])
+    df_dist = df_dist.groupby('Contexto').count().reset_index()
+    df_dist = df_dist.sort_values('Contagem', ascending=False)
+    
+    st.bar_chart(df_dist.set_index('Contexto'))
