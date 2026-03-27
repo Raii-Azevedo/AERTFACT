@@ -160,66 +160,88 @@ with col2:
             st.session_state.show_form = not st.session_state.show_form
 
 # ============================================
-# FORMULÁRIO PARA NOVO CASO (COM INPUT LIVRE)
+# FORMULÁRIO PARA NOVO CASO (COM INPUT LIVRE - CORRIGIDO)
 # ============================================
 if st.session_state.get("show_form", False) and can_edit_content:
-    with st.form("novo_caso", clear_on_submit=True):
-        st.subheader("📝 Adicionar Novo Caso")
+    
+    st.subheader("📝 Adicionar Novo Caso")
+    
+    titulo = st.text_input("Título do Caso*", placeholder="ex: Otimização de performance com Python", key="titulo_input")
+    
+    col1, col2 = st.columns(2)
+    
+    # Variáveis para armazenar valores
+    contexto_selecionado = None
+    tecnologia_selecionada = None
+    
+    with col1:
+        # Contexto com input livre
+        contextos_sugeridos = contextos_existentes if contextos_existentes else ["Performance", "Conectividade", "UX/UI", "Governança", "Segurança"]
+        contexto_opcao = st.selectbox(
+            "Contexto*",
+            contextos_sugeridos + ["➕ Adicionar novo contexto..."],
+            help="Selecione um contexto existente ou escolha a última opção para digitar um novo",
+            key="contexto_select"
+        )
         
-        titulo = st.text_input("Título do Caso*", placeholder="ex: Otimização de performance com Python")
+        if contexto_opcao == "➕ Adicionar novo contexto...":
+            contexto_selecionado = st.text_input("Digite o novo contexto", placeholder="ex: Machine Learning, Infraestrutura", key="contexto_novo")
+        else:
+            contexto_selecionado = contexto_opcao
+    
+    with col2:
+        # Tecnologia com input livre
+        tecnologias_sugeridas = tecnologias_existentes if tecnologias_existentes else ["DAX", "Python", "SQL", "Power BI", "Databricks"]
+        tecnologia_opcao = st.selectbox(
+            "Tecnologia*",
+            tecnologias_sugeridas + ["➕ Adicionar nova tecnologia..."],
+            help="Selecione uma tecnologia existente ou escolha a última opção para digitar uma nova",
+            key="tecnologia_select"
+        )
         
-        col1, col2 = st.columns(2)
-        with col1:
-            # Contexto com input livre (permite digitar qualquer valor)
-            contextos_sugeridos = contextos_existentes if contextos_existentes else ["Performance", "Conectividade", "UX/UI", "Governança", "Segurança"]
-            contexto = st.selectbox(
-                "Contexto* (ou digite um novo)", 
-                contextos_sugeridos + ["+ Adicionar novo contexto..."],
-                help="Selecione um contexto existente ou escolha a última opção para digitar um novo"
-            )
-            
-            if contexto == "+ Adicionar novo contexto...":
-                contexto = st.text_input("Digite o novo contexto", placeholder="ex: Machine Learning, Infraestrutura")
-        
-        with col2:
-            # Tecnologia com input livre
-            tecnologias_sugeridas = tecnologias_existentes if tecnologias_existentes else ["DAX", "Python", "SQL", "Power BI", "Databricks"]
-            tecnologia = st.selectbox(
-                "Tecnologia* (ou digite uma nova)", 
-                tecnologias_sugeridas + ["+ Adicionar nova tecnologia..."],
-                help="Selecione uma tecnologia existente ou escolha a última opção para digitar uma nova"
-            )
-            
-            if tecnologia == "+ Adicionar nova tecnologia...":
-                tecnologia = st.text_input("Digite a nova tecnologia", placeholder="ex: Spark, Airflow, dbt")
-        
-        descricao = st.text_area("Descrição da Solução*", height=100, 
-                                  placeholder="Descreva o problema enfrentado e como foi abordado...")
-        resultado = st.text_area("Resultados Alcançados*", height=100,
-                                  placeholder="Quais foram os benefícios? Redução de tempo? Melhoria de performance?")
-        
-        tags_input = st.text_input("Tags (separadas por vírgula)", placeholder="ex: otimização, performance, python")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            submitted = st.form_submit_button("💾 Salvar Caso", use_container_width=True, type="primary")
-        with col2:
-            if st.form_submit_button("❌ Cancelar", use_container_width=True):
+        if tecnologia_opcao == "➕ Adicionar nova tecnologia...":
+            tecnologia_selecionada = st.text_input("Digite a nova tecnologia", placeholder="ex: Spark, Airflow, dbt", key="tecnologia_nova")
+        else:
+            tecnologia_selecionada = tecnologia_opcao
+    
+    # Descrição e resultado
+    descricao = st.text_area("Descrição da Solução*", height=100, 
+                              placeholder="Descreva o problema enfrentado e como foi abordado...", key="descricao_input")
+    resultado = st.text_area("Resultados Alcançados*", height=100,
+                              placeholder="Quais foram os benefícios? Redução de tempo? Melhoria de performance?", key="resultado_input")
+    
+    tags_input = st.text_input("Tags (separadas por vírgula)", placeholder="ex: otimização, performance, python", key="tags_input")
+    
+    # Botões
+    col1, col2 = st.columns(2)
+    with col1:
+        submitted = st.button("💾 Salvar Caso", use_container_width=True, type="primary", key="submit_caso")
+    with col2:
+        if st.button("❌ Cancelar", use_container_width=True, key="cancel_caso"):
+            st.session_state.show_form = False
+            st.rerun()
+    
+    if submitted:
+        # Validar campos
+        if not titulo:
+            st.warning("⚠️ Preencha o título")
+        elif not descricao:
+            st.warning("⚠️ Preencha a descrição")
+        elif not resultado:
+            st.warning("⚠️ Preencha os resultados")
+        elif not contexto_selecionado:
+            st.warning("⚠️ Selecione ou digite um contexto")
+        elif not tecnologia_selecionada:
+            st.warning("⚠️ Selecione ou digite uma tecnologia")
+        else:
+            try:
+                tags_list = [t.strip() for t in tags_input.split(',')] if tags_input else []
+                adicionar_caso(titulo, contexto_selecionado, tecnologia_selecionada, descricao, resultado, tags_list, user_name, user_email)
+                st.success("✅ Caso adicionado com sucesso!")
                 st.session_state.show_form = False
                 st.rerun()
-        
-        if submitted:
-            if titulo and descricao and resultado and contexto and tecnologia:
-                try:
-                    tags_list = [t.strip() for t in tags_input.split(',')] if tags_input else []
-                    adicionar_caso(titulo, contexto, tecnologia, descricao, resultado, tags_list, user_name, user_email)
-                    st.success("✅ Caso adicionado com sucesso!")
-                    st.session_state.show_form = False
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao salvar: {e}")
-            else:
-                st.warning("⚠️ Preencha todos os campos obrigatórios (título, contexto, tecnologia, descrição e resultados)")
+            except Exception as e:
+                st.error(f"Erro ao salvar: {e}")
     
     st.divider()
 
