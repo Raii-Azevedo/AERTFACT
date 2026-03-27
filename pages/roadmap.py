@@ -535,7 +535,8 @@ for fase in fases:
         with col1:
             st.markdown(f"### {nome_fase}")
         with col2:
-            if can_edit_content:
+            # MUDANÇA: apenas admin pode editar
+            if is_admin_user:  # <--- troque can_edit_content por is_admin_user
                 novo_status = st.selectbox(
                     "Status",
                     ["✅ Concluído", "🔄 Em andamento", "📝 Planejada", "🚀 Iniciada", "📅 Agendada"],
@@ -552,8 +553,6 @@ for fase in fases:
             st.markdown(f"📅 **{data}**")
         with col4:
             st.markdown(f"📦 {entregas}")
-
-st.divider()
 
 # ============================================
 # SEÇÃO 4: PRÓXIMOS PASSOS
@@ -683,7 +682,8 @@ if entregas:
                 else:
                     st.info("🔵 Baixa")
             with col5:
-                if can_edit_content:
+                # MUDANÇA: apenas admin pode editar
+                if is_admin_user:  # <--- troque can_edit_content por is_admin_user
                     novo_status = st.selectbox(
                         "Status",
                         ["pendente", "em andamento", "concluído"],
@@ -699,17 +699,17 @@ if entregas:
                         remover_entrega(entrega_id)
                         st.rerun()
                 else:
-                    st.markdown(f"📌 {status}")
-else:
-    st.info("Nenhuma entrega cadastrada ainda. Use a área de administração para adicionar.")
+                    # Mostrar apenas o status sem edição
+                    status_emoji = {"pendente": "⏳", "em andamento": "🔄", "concluído": "✅"}.get(status, "📌")
+                    st.markdown(f"{status_emoji} {status}")
 
 # ============================================
 # SEÇÃO 7: ADMIN - GESTÃO DO ROADMAP
 # ============================================
-if can_edit_content or is_admin_user:
+if is_admin_user:  # <--- também mude para apenas admin
     st.divider()
-    with st.expander("🔧 **Administração do Roadmap** (Apenas Editores)", expanded=False):
-        st.warning("⚠️ Área restrita para atualização do roadmap")
+    with st.expander("🔧 **Administração do Roadmap** (Apenas Administradores)", expanded=False):
+        st.warning("⚠️ Área restrita para administradores")
         
         col1, col2 = st.columns(2)
         
