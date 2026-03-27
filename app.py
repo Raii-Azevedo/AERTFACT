@@ -69,6 +69,7 @@ st.markdown("""
     justify-content: center;
     align-items: center;
     width: 50%;
+    padding-left: 30px;
 }
 
 .logo-container img {
