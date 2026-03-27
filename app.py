@@ -51,8 +51,8 @@ st.markdown("""
 }
 
 .content-wrapper {
-    max-width: 520px;
-    width: 100%;
+    max-width: 500px;
+    width: 50%;
     display: flex;
     flex-direction: column;
     align-items: center;
