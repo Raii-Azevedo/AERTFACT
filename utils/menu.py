@@ -58,13 +58,6 @@ def render_sidebar():
         if os.path.exists("pages/materiais.py"):
             if st.button("📚 Materiais", use_container_width=True, key="menu_materiais"):
                 st.switch_page("pages/materiais.py")
-
-        # ========== NOVO: IMPORTAR DADOS ==========
-        # Importar Dados (apenas para admin)
-        if is_admin(user_email):
-            if st.button("📥 Importar Dados", use_container_width=True, key="menu_importar"):
-                st.switch_page("pages/importar_dados.py")
-
         st.divider()
 
         # Área administrativa (apenas para admins)
