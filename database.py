@@ -345,6 +345,15 @@ def _init_postgresql():
             VALUES (%s, %s, %s, %s)
         """, ('admin@aehub.com', 'admin', 'Administrador', 'system'))
 
+    # Garantir que admin existe
+    cursor.execute("SELECT * FROM allowed_emails WHERE email = 'admin@aehub.com'")
+    if not cursor.fetchone():
+        cursor.execute("""
+            INSERT INTO allowed_emails (email, role, nome, added_by)
+            VALUES (%s, %s, %s, %s)
+        """, ('admin@aehub.com', 'admin', 'Administrador', 'system'))
+        print("✅ Admin adicionado ao banco!")
+
     conn.commit()
     cursor.close()
     conn.close()
