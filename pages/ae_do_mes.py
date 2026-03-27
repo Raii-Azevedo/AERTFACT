@@ -8,7 +8,7 @@ import hashlib
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.menu import render_sidebar
 from allowed_emails import get_all_allowed_emails, is_admin, get_user_role
-from database import get_connection, return_connection, salvar_ae_mes_historico, get_historico_ae_mes, get_nome_usuario, get_avatar_url
+from database import get_connection, return_connection, salvar_ae_mes_historico, get_historico_ae_mes, get_nome_usuario, get_avatar_url, DB_TYPE
 
 st.set_page_config(page_title="AE do Mês", page_icon="🏆", layout="wide", initial_sidebar_state="expanded")
 
@@ -21,6 +21,10 @@ render_sidebar()
 st.title("🏆 AE do Mês")
 st.caption("Reconhecendo quem mais contribui para o crescimento do time")
 
+def get_placeholder():
+    """Retorna o placeholder correto para cada banco"""
+    return '%s' if DB_TYPE == 'postgresql' else '?'
+
 # ============================================
 # FUNÇÕES PARA CÁLCULO DE PONTUAÇÃO
 # ============================================
@@ -29,36 +33,37 @@ def calcular_pontuacao_contribuicoes(autor_email):
     """Calcula a pontuação total de um usuário baseado nas contribuições"""
     conn = get_connection()
     cursor = conn.cursor()
+    placeholder = get_placeholder()
     
     pontuacao = 0
     contribuicoes = {}
     
     # Casos de uso (10 pontos cada)
-    cursor.execute("SELECT COUNT(*) FROM casos_uso WHERE autor_email = ?", (autor_email,))
+    cursor.execute(f"SELECT COUNT(*) FROM casos_uso WHERE autor_email = {placeholder}", (autor_email,))
     casos = cursor.fetchone()[0]
     pontuacao += casos * 10
     contribuicoes['casos'] = casos
     
     # Vídeos (15 pontos cada)
-    cursor.execute("SELECT COUNT(*) FROM videos WHERE autor_email = ?", (autor_email,))
+    cursor.execute(f"SELECT COUNT(*) FROM videos WHERE autor_email = {placeholder}", (autor_email,))
     videos = cursor.fetchone()[0]
     pontuacao += videos * 15
     contribuicoes['videos'] = videos
     
     # Snippets (5 pontos cada)
-    cursor.execute("SELECT COUNT(*) FROM snippets WHERE autor_email = ?", (autor_email,))
+    cursor.execute(f"SELECT COUNT(*) FROM snippets WHERE autor_email = {placeholder}", (autor_email,))
     snippets = cursor.fetchone()[0]
     pontuacao += snippets * 5
     contribuicoes['snippets'] = snippets
     
     # Ferramentas (8 pontos cada)
-    cursor.execute("SELECT COUNT(*) FROM ferramentas WHERE autor_email = ?", (autor_email,))
+    cursor.execute(f"SELECT COUNT(*) FROM ferramentas WHERE autor_email = {placeholder}", (autor_email,))
     ferramentas = cursor.fetchone()[0]
     pontuacao += ferramentas * 8
     contribuicoes['ferramentas'] = ferramentas
     
     # Materiais (3 pontos cada)
-    cursor.execute("SELECT COUNT(*) FROM materiais WHERE autor_email = ?", (autor_email,))
+    cursor.execute(f"SELECT COUNT(*) FROM materiais WHERE autor_email = {placeholder}", (autor_email,))
     materiais = cursor.fetchone()[0]
     pontuacao += materiais * 3
     contribuicoes['materiais'] = materiais
@@ -72,82 +77,83 @@ def get_contribuicoes_detalhadas(autor_email, limite=10):
     """Retorna contribuições detalhadas de um usuário"""
     conn = get_connection()
     cursor = conn.cursor()
+    placeholder = get_placeholder()
     
     contribuicoes = []
     
     # Buscar casos do usuário
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT titulo, 'Case' as tipo, data_criacao 
         FROM casos_uso 
-        WHERE autor_email = ? 
-        ORDER BY data_criacao DESC LIMIT ?
-    """, (autor_email, limite))
+        WHERE autor_email = {placeholder} 
+        ORDER BY data_criacao DESC LIMIT {limite}
+    """, (autor_email,))
     
     for row in cursor.fetchall():
         contribuicoes.append({
             'titulo': row[0],
             'tipo': row[1],
-            'data': row[2][:10] if row[2] else 'N/A'
+            'data': str(row[2])[:10] if row[2] else 'N/A'
         })
     
     # Buscar vídeos
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT titulo, 'Vídeo' as tipo, data_criacao 
         FROM videos 
-        WHERE autor_email = ? 
-        ORDER BY data_criacao DESC LIMIT ?
-    """, (autor_email, limite))
+        WHERE autor_email = {placeholder} 
+        ORDER BY data_criacao DESC LIMIT {limite}
+    """, (autor_email,))
     
     for row in cursor.fetchall():
         contribuicoes.append({
             'titulo': row[0],
             'tipo': row[1],
-            'data': row[2][:10] if row[2] else 'N/A'
+            'data': str(row[2])[:10] if row[2] else 'N/A'
         })
     
     # Buscar snippets
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT titulo, 'Snippet' as tipo, data_criacao 
         FROM snippets 
-        WHERE autor_email = ? 
-        ORDER BY data_criacao DESC LIMIT ?
-    """, (autor_email, limite))
+        WHERE autor_email = {placeholder} 
+        ORDER BY data_criacao DESC LIMIT {limite}
+    """, (autor_email,))
     
     for row in cursor.fetchall():
         contribuicoes.append({
             'titulo': row[0],
             'tipo': row[1],
-            'data': row[2][:10] if row[2] else 'N/A'
+            'data': str(row[2])[:10] if row[2] else 'N/A'
         })
     
     # Buscar ferramentas
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT nome, 'Ferramenta' as tipo, data_criacao 
         FROM ferramentas 
-        WHERE autor_email = ? 
-        ORDER BY data_criacao DESC LIMIT ?
-    """, (autor_email, limite))
+        WHERE autor_email = {placeholder} 
+        ORDER BY data_criacao DESC LIMIT {limite}
+    """, (autor_email,))
     
     for row in cursor.fetchall():
         contribuicoes.append({
             'titulo': row[0],
             'tipo': row[1],
-            'data': row[2][:10] if row[2] else 'N/A'
+            'data': str(row[2])[:10] if row[2] else 'N/A'
         })
     
     # Buscar materiais
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT titulo, 'Material' as tipo, data_criacao 
         FROM materiais 
-        WHERE autor_email = ? 
-        ORDER BY data_criacao DESC LIMIT ?
-    """, (autor_email, limite))
+        WHERE autor_email = {placeholder} 
+        ORDER BY data_criacao DESC LIMIT {limite}
+    """, (autor_email,))
     
     for row in cursor.fetchall():
         contribuicoes.append({
             'titulo': row[0],
             'tipo': row[1],
-            'data': row[2][:10] if row[2] else 'N/A'
+            'data': str(row[2])[:10] if row[2] else 'N/A'
         })
     
     cursor.close()
@@ -223,7 +229,8 @@ with tab_atual:
                 # Buscar avatar do banco
                 conn = get_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT avatar_file, nome FROM allowed_emails WHERE email = ?", (ae_mes['email'],))
+                placeholder = get_placeholder()
+                cursor.execute(f"SELECT avatar_file, nome FROM allowed_emails WHERE email = {placeholder}", (ae_mes['email'],))
                 dados = cursor.fetchone()
                 cursor.close()
                 return_connection(conn)
@@ -232,7 +239,7 @@ with tab_atual:
                 nome_usuario = dados[1] if dados else ae_mes['nome']
                 
                 # Mostrar avatar
-                if avatar_file and os.path.exists(avatar_file):
+                if avatar_file:
                     st.image(avatar_file, width=200, caption=nome_usuario)
                 else:
                     # Gerar avatar padrão via Gravatar
@@ -319,7 +326,8 @@ with tab_ranking:
                 # Buscar avatar do banco
                 conn = get_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT avatar_file FROM allowed_emails WHERE email = ?", (rank['email'],))
+                placeholder = get_placeholder()
+                cursor.execute(f"SELECT avatar_file FROM allowed_emails WHERE email = {placeholder}", (rank['email'],))
                 dados = cursor.fetchone()
                 cursor.close()
                 return_connection(conn)
@@ -330,7 +338,7 @@ with tab_ranking:
                     st.markdown(f"### {badge}")
                 with col2:
                     # Mostrar avatar pequeno
-                    if avatar_file and os.path.exists(avatar_file):
+                    if avatar_file:
                         st.image(avatar_file, width=40)
                     else:
                         email_hash = hashlib.md5(rank['email'].encode()).hexdigest()
@@ -375,7 +383,7 @@ with tab_historico:
                     st.caption(f"{item[1]}/{item[2]}")  # mês/ano
                 with col3:
                     st.markdown(f"🎯 {item[3]} pontos")
-                st.caption(f"📅 Definido em: {item[5][:10] if item[5] else 'N/A'}")
+                st.caption(f"📅 Definido em: {str(item[5])[:10] if item[5] else 'N/A'}")
     else:
         st.info("📜 Histórico ainda não disponível. Os AE do Mês aparecerão aqui.")
     
