@@ -278,32 +278,143 @@ with tab_historico:
     historico = get_historico_ae_mes()
     
     if historico:
-        st.markdown("### 🎖️ Últimos AE do Mês")
+        st.markdown("### 🎖️ Últimos Campeões")
+        st.markdown("*Os Analytics Engineers que brilharam nos últimos meses*")
         
-        for item in historico[:5]:
-            with st.container(border=True):
-                col1, col2, col3 = st.columns([1, 3, 2])
-                with col1:
-                    st.markdown(f"### 🏆")
-                with col2:
-                    st.markdown(f"**{item[0]}**")
-                    st.caption(f"{item[1]}/{item[2]}")
-                with col3:
-                    st.markdown(f"🎯 {item[3]} pontos")
-                st.caption(f"📅 Definido em: {str(item[5])[:10] if item[5] else 'N/A'}")
+        # Layout em grid para os últimos AE do Mês
+        cols = st.columns(3)
+        for idx, item in enumerate(historico[:6]):
+            with cols[idx % 3]:
+                with st.container(border=True):
+                    # Avatar/coroa
+                    st.markdown("""
+                    <div style="text-align: center;">
+                        <span style="font-size: 3rem;">🏆</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Nome e data
+                    st.markdown(f"""
+                    <div style="text-align: center;">
+                        <h4 style="margin: 0.5rem 0 0 0;">{item[0]}</h4>
+                        <p style="color: #888; margin: 0;">{item[1]}/{item[2]}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.divider()
+                    
+                    # Pontuação
+                    st.markdown(f"""
+                    <div style="text-align: center;">
+                        <span style="font-size: 1.5rem; font-weight: bold; color: #667eea;">{item[3]}</span>
+                        <span style="color: #888;"> pontos</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Data de definição
+                    data_def = str(item[5])[:10] if item[5] else 'N/A'
+                    st.caption(f"📅 {data_def}")
     else:
         st.info("📜 Histórico ainda não disponível. Os AE do Mês aparecerão aqui.")
     
     st.divider()
     
-    # Top contribuidores de todos os tempos
+    # ============================================
+    # TOP CONTRIBUIDORES DE TODOS OS TEMPOS
+    # ============================================
     st.markdown("### 🎖️ Maiores Contribuidores de Todos os Tempos")
+    st.markdown("*Quem mais contribuiu para o crescimento do nosso conhecimento*")
     
-    st.markdown("| Posição | Nome | Pontuação Total | Contribuições |")
-    st.markdown("|---------|------|-----------------|---------------|")
-    
+    # Criar um layout mais bonito para o ranking
     for idx, rank in enumerate(ranking_com_contrib[:10]):
-        st.markdown(f"| #{idx+1} | {rank['nome']} | {rank['pontos']} pontos | {rank['contribuicoes']} |")
+        # Definir medalha
+        if idx == 0:
+            medalha = "🥇"
+            cor = "#FFD700"
+        elif idx == 1:
+            medalha = "🥈"
+            cor = "#C0C0C0"
+        elif idx == 2:
+            medalha = "🥉"
+            cor = "#CD7F32"
+        else:
+            medalha = "📌"
+            cor = "#888"
+        
+        with st.container(border=True):
+            col1, col2, col3, col4 = st.columns([1, 4, 2, 2])
+            
+            with col1:
+                st.markdown(f"""
+                <div style="text-align: center;">
+                    <span style="font-size: 2rem;">{medalha}</span>
+                    <div style="font-size: 1.2rem; font-weight: bold;">#{idx+1}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                # Nome e avatar
+                st.markdown(f"""
+                <div>
+                    <span style="font-size: 1.1rem; font-weight: bold;">{rank['nome']}</span>
+                    <br>
+                    <span style="color: #888; font-size: 0.8rem;">{rank['email']}</span>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Barra de progresso estilizada
+                max_pontos = ranking_com_contrib[0]['pontos']
+                percent = (rank['pontos'] / max_pontos) * 100
+                st.markdown(f"""
+                <div style="background: #2d2d3a; border-radius: 10px; height: 8px; margin-top: 8px;">
+                    <div style="background: linear-gradient(90deg, #667eea, #764ba2); width: {percent}%; height: 8px; border-radius: 10px;"></div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown(f"""
+                <div style="text-align: right;">
+                    <span style="font-size: 1.3rem; font-weight: bold; color: #667eea;">{rank['pontos']}</span>
+                    <br>
+                    <span style="color: #888;">pontos</span>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col4:
+                # Breakdown das contribuições
+                st.markdown(f"""
+                <div style="text-align: center;">
+                    <div style="display: flex; gap: 8px; justify-content: center;">
+                        <span title="Casos">📚 {rank['detalhes']['casos']}</span>
+                        <span title="Vídeos">🎥 {rank['detalhes']['videos']}</span>
+                        <span title="Snippets">⚡ {rank['detalhes']['snippets']}</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; justify-content: center; margin-top: 4px;">
+                        <span title="Ferramentas">🛠️ {rank['detalhes']['ferramentas']}</span>
+                        <span title="Materiais">📖 {rank['detalhes']['materiais']}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    st.divider()
+    
+    # ============================================
+    # ESTATÍSTICAS E BADGES
+    # ============================================
+    if ranking_com_contrib:
+        total_contrib = sum(r['contribuicoes'] for r in ranking_com_contrib)
+        total_pontos = sum(r['pontos'] for r in ranking_com_contrib)
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("🏆 Total Contribuidores", len(ranking_com_contrib))
+        with col2:
+            st.metric("📊 Total Contribuições", total_contrib)
+        with col3:
+            st.metric("⭐ Total Pontos", total_pontos)
+        with col4:
+            st.metric("🎯 Média por Usuário", f"{total_pontos // len(ranking_com_contrib)} pts")
     
     st.divider()
     st.caption("💡 **Dica:** Quanto mais você contribui com casos, vídeos, snippets, ferramentas e materiais, maior sua pontuação!")
+    st.caption("🏅 **Medalhas:** Ouro 🥇, Prata 🥈, Bronze 🥉 são atualizados mensalmente baseados nas contribuições.")
