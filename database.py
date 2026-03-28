@@ -2,50 +2,27 @@ import os
 import sys
 from datetime import datetime
 from dotenv import load_dotenv
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # Carregar variáveis de ambiente
 load_dotenv()
 
 # Configurações do banco de dados
-DB_TYPE = os.getenv('DB_TYPE', 'sqlite')
 DATABASE_URL = os.getenv('DATABASE_URL', '')
 
-# Se tiver DATABASE_URL, usa PostgreSQL (Railway, Heroku, etc.)
-if DATABASE_URL:
-    DB_TYPE = 'postgresql'
-    try:
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        print("✅ PostgreSQL disponível")
-    except ImportError:
-        print("⚠️ psycopg2 não instalado, usando SQLite")
-        DB_TYPE = 'sqlite'
-        DATABASE_URL = ''
+if not DATABASE_URL:
+    raise Exception("DATABASE_URL não configurada! Configure no Railway ou no arquivo .env")
 
-DB_HOST = os.getenv('DB_HOST', 'localhost')
-DB_PORT = os.getenv('DB_PORT', '5432')
-DB_NAME = os.getenv('DB_NAME', 'ae_knowledge')
-DB_USER = os.getenv('DB_USER', '')
-DB_PASSWORD = os.getenv('DB_PASSWORD', '')
-DB_PATH = os.getenv('DB_PATH', 'ae_knowledge.db')
+print("✅ Conectando ao PostgreSQL...")
 
 def get_connection():
-    """Retorna uma conexão com o banco de dados"""
-    if DB_TYPE.lower() == 'postgresql' and DATABASE_URL:
-        try:
-            return psycopg2.connect(DATABASE_URL)
-        except Exception as e:
-            print(f"❌ Erro ao conectar PostgreSQL: {e}")
-            print("⚠️ Usando SQLite como fallback")
-            import sqlite3
-            if not os.path.exists(DB_PATH):
-                init_database()
-            return sqlite3.connect(DB_PATH)
-    else:
-        import sqlite3
-        if not os.path.exists(DB_PATH):
-            init_database()
-        return sqlite3.connect(DB_PATH)
+    """Retorna uma conexão com o banco de dados PostgreSQL"""
+    try:
+        return psycopg2.connect(DATABASE_URL)
+    except Exception as e:
+        print(f"❌ Erro ao conectar PostgreSQL: {e}")
+        raise
 
 def return_connection(conn):
     """Fecha a conexão com o banco de dados"""
@@ -54,167 +31,12 @@ def return_connection(conn):
 
 def init_database():
     """Inicializa o banco de dados com todas as tabelas necessárias"""
-    if DB_TYPE.lower() == 'postgresql' and DATABASE_URL:
-        _init_postgresql()
-    else:
-        _init_sqlite()
-
-def _init_sqlite():
-    """Inicializa banco SQLite"""
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_connection()
     cursor = conn.cursor()
-
-    # Tabela de emails autorizados
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS allowed_emails (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        email TEXT UNIQUE NOT NULL,
-        role TEXT NOT NULL DEFAULT 'viewer',
-        nome TEXT,
-        avatar_url TEXT,
-        avatar_file TEXT,
-        added_by TEXT,
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-
-    # Tabela de casos de uso
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS casos_uso (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
-            contexto TEXT NOT NULL,
-            tecnologia TEXT NOT NULL,
-            descricao TEXT NOT NULL,
-            resultado TEXT,
-            tags TEXT,
-            autor TEXT NOT NULL,
-            autor_email TEXT NOT NULL,
-            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Tabela de boas práticas
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS boas_praticas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
-            categoria TEXT NOT NULL,
-            conteudo TEXT NOT NULL,
-            autor TEXT NOT NULL,
-            autor_email TEXT NOT NULL,
-            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Tabela de ferramentas
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ferramentas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            categoria TEXT NOT NULL,
-            versao TEXT,
-            descricao TEXT,
-            nivel TEXT,
-            documentacao_link TEXT,
-            autor TEXT NOT NULL,
-            autor_email TEXT NOT NULL,
-            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Tabela de vídeos/pílulas
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS videos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
-            descricao TEXT,
-            tema TEXT NOT NULL,
-            nivel TEXT NOT NULL,
-            duracao TEXT,
-            youtube_id TEXT,
-            thumbnail_url TEXT,
-            autor TEXT NOT NULL,
-            autor_email TEXT NOT NULL,
-            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Tabela de snippets
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS snippets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
-            linguagem TEXT NOT NULL,
-            codigo TEXT NOT NULL,
-            descricao TEXT,
-            tags TEXT,
-            autor TEXT NOT NULL,
-            autor_email TEXT NOT NULL,
-            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Tabela de materiais de referência
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS materiais (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT NOT NULL,
-            tipo TEXT NOT NULL,
-            topicos TEXT,
-            descricao TEXT,
-            url TEXT,
-            autor TEXT NOT NULL,
-            autor_email TEXT NOT NULL,
-            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Tabela de histórico do AE do Mês
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ae_mes_historico (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT NOT NULL,
-            nome TEXT NOT NULL,
-            mes INTEGER NOT NULL,
-            ano INTEGER NOT NULL,
-            pontuacao INTEGER NOT NULL,
-            contribuicoes TEXT,
-            definido_por TEXT,
-            data_definicao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Inserir admin padrão se não existir
-    cursor.execute("SELECT * FROM allowed_emails WHERE email = 'admin@aehub.com'")
-    if not cursor.fetchone():
-        cursor.execute("""
-            INSERT INTO allowed_emails (email, role, nome, added_by)
-            VALUES ('admin@aehub.com', 'admin', 'Administrador', 'system')
-        """)
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-    print("✅ Banco de dados SQLite inicializado com sucesso!")
-
-def _init_postgresql():
-    """Inicializa banco PostgreSQL"""
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-    except Exception as e:
-        print(f"❌ Erro ao conectar PostgreSQL: {e}")
-        print("⚠️ Usando SQLite como fallback")
-        global DB_TYPE
-        DB_TYPE = 'sqlite'
-        return _init_sqlite()
     
-    cursor = conn.cursor()
-
-    # Tabela de emails autorizados
+    # ============================================
+    # TABELA DE EMAILS AUTORIZADOS
+    # ============================================
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS allowed_emails (
         id SERIAL PRIMARY KEY,
@@ -228,7 +50,9 @@ def _init_postgresql():
     )
     ''')
 
-    # Tabela de casos de uso
+    # ============================================
+    # TABELA DE CASOS DE USO
+    # ============================================
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS casos_uso (
             id SERIAL PRIMARY KEY,
@@ -245,7 +69,9 @@ def _init_postgresql():
         )
     ''')
 
-    # Tabela de boas práticas
+    # ============================================
+    # TABELA DE BOAS PRÁTICAS
+    # ============================================
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS boas_praticas (
             id SERIAL PRIMARY KEY,
@@ -258,7 +84,9 @@ def _init_postgresql():
         )
     ''')
 
-    # Tabela de ferramentas
+    # ============================================
+    # TABELA DE FERRAMENTAS
+    # ============================================
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ferramentas (
             id SERIAL PRIMARY KEY,
@@ -274,7 +102,9 @@ def _init_postgresql():
         )
     ''')
 
-    # Tabela de vídeos/pílulas
+    # ============================================
+    # TABELA DE VÍDEOS/PÍLULAS
+    # ============================================
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS videos (
             id SERIAL PRIMARY KEY,
@@ -291,7 +121,9 @@ def _init_postgresql():
         )
     ''')
 
-    # Tabela de snippets
+    # ============================================
+    # TABELA DE SNIPPETS
+    # ============================================
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS snippets (
             id SERIAL PRIMARY KEY,
@@ -306,7 +138,9 @@ def _init_postgresql():
         )
     ''')
 
-    # Tabela de materiais de referência
+    # ============================================
+    # TABELA DE MATERIAIS DE REFERÊNCIA
+    # ============================================
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS materiais (
             id SERIAL PRIMARY KEY,
@@ -322,7 +156,9 @@ def _init_postgresql():
         )
     ''')
 
-    # Tabela de histórico do AE do Mês
+    # ============================================
+    # TABELA DE HISTÓRICO DO AE DO MÊS
+    # ============================================
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ae_mes_historico (
             id SERIAL PRIMARY KEY,
@@ -337,7 +173,114 @@ def _init_postgresql():
         )
     ''')
 
-    # Inserir admin padrão se não existir
+    # ============================================
+    # TABELAS DO ROADMAP
+    # ============================================
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS roadmap_progresso (
+            id SERIAL PRIMARY KEY,
+            pilar TEXT NOT NULL,
+            progresso INTEGER NOT NULL,
+            meta TEXT,
+            atualizado_por TEXT,
+            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS roadmap_entregas (
+            id SERIAL PRIMARY KEY,
+            titulo TEXT NOT NULL,
+            responsavel TEXT NOT NULL,
+            prazo TEXT NOT NULL,
+            prioridade TEXT NOT NULL,
+            status TEXT DEFAULT 'pendente',
+            criado_por TEXT,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS roadmap_fases (
+            id SERIAL PRIMARY KEY,
+            fase TEXT NOT NULL,
+            status TEXT NOT NULL,
+            data_prevista TEXT NOT NULL,
+            entregas TEXT,
+            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ============================================
+    # TABELAS PARA ONBOARDING E FEEDBACK
+    # ============================================
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS trilhas_aprendizado (
+            id SERIAL PRIMARY KEY,
+            nome TEXT NOT NULL,
+            nivel TEXT NOT NULL,
+            descricao TEXT,
+            tempo_estimado TEXT,
+            requisitos TEXT,
+            criado_por TEXT,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS trilhas_etapas (
+            id SERIAL PRIMARY KEY,
+            trilha_id INTEGER NOT NULL,
+            ordem INTEGER NOT NULL,
+            titulo TEXT NOT NULL,
+            descricao TEXT,
+            tipo TEXT NOT NULL,
+            conteudo_id INTEGER,
+            url_externa TEXT,
+            prazo_dias INTEGER
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS progresso_usuario (
+            id SERIAL PRIMARY KEY,
+            usuario_email TEXT NOT NULL,
+            trilha_id INTEGER NOT NULL,
+            etapa_id INTEGER NOT NULL,
+            status TEXT DEFAULT 'pendente',
+            data_inicio TIMESTAMP,
+            data_conclusao TIMESTAMP
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS feedback_casos (
+            id SERIAL PRIMARY KEY,
+            caso_id INTEGER NOT NULL,
+            usuario_email TEXT NOT NULL,
+            avaliacao INTEGER CHECK (avaliacao >= 1 AND avaliacao <= 5),
+            comentario TEXT,
+            utilidade TEXT,
+            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS casos_destaque (
+            id SERIAL PRIMARY KEY,
+            caso_id INTEGER NOT NULL,
+            motivo TEXT,
+            destacado_por TEXT,
+            data_destaque TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # ============================================
+    # DADOS INICIAIS
+    # ============================================
+    
+    # Inserir admin padrão
     cursor.execute("SELECT * FROM allowed_emails WHERE email = 'admin@aehub.com'")
     if not cursor.fetchone():
         cursor.execute("""
@@ -345,13 +288,89 @@ def _init_postgresql():
             VALUES (%s, %s, %s, %s)
         """, ('admin@aehub.com', 'admin', 'Administrador', 'system'))
 
+    # Inserir dados iniciais do roadmap
+    cursor.execute("SELECT COUNT(*) FROM roadmap_progresso")
+    if cursor.fetchone()[0] == 0:
+        progressos_iniciais = [
+            ("Pilar A: Casos de Uso", 75, "50 casos até Jun/26", "system"),
+            ("Pilar B: Boas Práticas", 60, "8 checklists completos", "system"),
+            ("Pilar C: Stack de Ferramentas", 85, "50+ ferramentas catalogadas", "system"),
+            ("Pilar D: Biblioteca", 40, "200+ materiais catalogados", "system"),
+            ("Pilar E: Treinamento", 35, "20 pílulas + playlist", "system"),
+            ("Pilar F: Gamificação", 70, "Sistema de pontos e badges", "system")
+        ]
+        for pilar, prog, meta, autor in progressos_iniciais:
+            cursor.execute("""
+                INSERT INTO roadmap_progresso (pilar, progresso, meta, atualizado_por)
+                VALUES (%s, %s, %s, %s)
+            """, (pilar, prog, meta, autor))
+    
+    cursor.execute("SELECT COUNT(*) FROM roadmap_fases")
+    if cursor.fetchone()[0] == 0:
+        fases_iniciais = [
+            ("Fase 1: Crowdsourcing", "✅ Concluído", "26/03/2026", "18 cases coletados"),
+            ("Fase 2: Curadoria", "🔄 Em andamento", "Abril 2026", "Categorização com IA, agrupamento por temas"),
+            ("Fase 3: Documentação", "📝 Planejada", "Maio 2026", "Consolidação do Guia de Estilo, templates"),
+            ("Fase 4: Biblioteca", "🚀 Iniciada", "Junho 2026", "Importação de 100+ materiais, busca integrada"),
+            ("Fase 5: Gamificação", "📅 Agendada", "Julho 2026", "Sistema de pontos, badges, ranking")
+        ]
+        for fase, status, data, entregas in fases_iniciais:
+            cursor.execute("""
+                INSERT INTO roadmap_fases (fase, status, data_prevista, entregas)
+                VALUES (%s, %s, %s, %s)
+            """, (fase, status, data, entregas))
+
+    # Inserir dados iniciais das trilhas
+    cursor.execute("SELECT COUNT(*) FROM trilhas_aprendizado")
+    if cursor.fetchone()[0] == 0:
+        # Trilha Iniciante
+        cursor.execute("""
+            INSERT INTO trilhas_aprendizado (nome, nivel, descricao, tempo_estimado, requisitos, criado_por)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, ('Fundamentos de Analytics Engineering', 'iniciante', 
+              'Trilha essencial para novos AEs: conceitos de modelagem, DAX básico e Power Query',
+              '2 semanas', 'Conhecimento básico de SQL', 'system'))
+        
+        cursor.execute("SELECT lastval()")
+        trilha_id = cursor.fetchone()[0]
+        
+        etapas_iniciante = [
+            (1, "Introdução ao Star Schema", "Entenda os conceitos de modelagem dimensional", "material", None, None, 2),
+            (2, "DAX Básico: Medidas e Contexto", "Aprenda a criar medidas simples e entender contexto", "video", None, "https://youtu.be/example", 3),
+            (3, "Power Query para Iniciantes", "Transformação e limpeza de dados", "material", None, None, 2),
+            (4, "Case: Otimização de Modelo", "Estude um caso real de otimização", "caso", 1, None, 3),
+            (5, "Checklist de Boas Práticas", "Valide seus conhecimentos com nosso checklist", "desafio", None, None, 2)
+        ]
+        
+        for ordem, titulo, desc, tipo, conteudo_id, url, prazo in etapas_iniciante:
+            cursor.execute("""
+                INSERT INTO trilhas_etapas (trilha_id, ordem, titulo, descricao, tipo, conteudo_id, url_externa, prazo_dias)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (trilha_id, ordem, titulo, desc, tipo, conteudo_id, url, prazo))
+        
+        # Trilha Intermediário
+        cursor.execute("""
+            INSERT INTO trilhas_aprendizado (nome, nivel, descricao, tempo_estimado, requisitos, criado_por)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, ('Otimização e Performance', 'intermediario', 
+              'Aprofunde seus conhecimentos em performance DAX, otimização de modelos e boas práticas avançadas',
+              '3 semanas', 'Conhecimento básico de DAX e modelagem', 'system'))
+        
+        # Trilha Avançado
+        cursor.execute("""
+            INSERT INTO trilhas_aprendizado (nome, nivel, descricao, tempo_estimado, requisitos, criado_por)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, ('Arquitetura e Integrações', 'avancado', 
+              'Domine integrações com Databricks, APIs e arquiteturas de dados escaláveis',
+              '4 semanas', 'Experiência com DAX e Power Query', 'system'))
+
     conn.commit()
     cursor.close()
     conn.close()
     print("✅ Banco de dados PostgreSQL inicializado com sucesso!")
 
 # ============================================
-# FUNÇÕES PARA GERENCIAR USUÁRIOS COM AVATAR
+# FUNÇÕES PARA GERENCIAR USUÁRIOS
 # ============================================
 
 def adicionar_usuario_com_avatar(email, role='viewer', nome=None, avatar_file=None, added_by=None):
@@ -363,24 +382,14 @@ def adicionar_usuario_com_avatar(email, role='viewer', nome=None, avatar_file=No
         if not nome:
             nome = email.split('@')[0].replace('.', ' ').title()
         
-        if DB_TYPE == 'postgresql':
-            cursor.execute("""
-                INSERT INTO allowed_emails (email, role, nome, avatar_file, added_by)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT(email) DO UPDATE SET 
-                    role = EXCLUDED.role,
-                    nome = EXCLUDED.nome,
-                    avatar_file = EXCLUDED.avatar_file
-            """, (email.lower().strip(), role, nome, avatar_file, added_by))
-        else:
-            cursor.execute("""
-                INSERT INTO allowed_emails (email, role, nome, avatar_file, added_by)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(email) DO UPDATE SET 
-                    role = excluded.role,
-                    nome = excluded.nome,
-                    avatar_file = excluded.avatar_file
-            """, (email.lower().strip(), role, nome, avatar_file, added_by))
+        cursor.execute("""
+            INSERT INTO allowed_emails (email, role, nome, avatar_file, added_by)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT(email) DO UPDATE SET 
+                role = EXCLUDED.role,
+                nome = EXCLUDED.nome,
+                avatar_file = EXCLUDED.avatar_file
+        """, (email.lower().strip(), role, nome, avatar_file, added_by))
         
         conn.commit()
         cursor.close()
@@ -394,10 +403,7 @@ def get_avatar_url(email):
     """Retorna o caminho do arquivo de avatar do usuário"""
     conn = get_connection()
     cursor = conn.cursor()
-    if DB_TYPE == 'postgresql':
-        cursor.execute("SELECT avatar_file FROM allowed_emails WHERE email = %s", (email,))
-    else:
-        cursor.execute("SELECT avatar_file FROM allowed_emails WHERE email = ?", (email,))
+    cursor.execute("SELECT avatar_file FROM allowed_emails WHERE email = %s", (email,))
     result = cursor.fetchone()
     cursor.close()
     return_connection(conn)
@@ -407,10 +413,7 @@ def get_nome_usuario(email):
     """Retorna o nome do usuário"""
     conn = get_connection()
     cursor = conn.cursor()
-    if DB_TYPE == 'postgresql':
-        cursor.execute("SELECT nome FROM allowed_emails WHERE email = %s", (email,))
-    else:
-        cursor.execute("SELECT nome FROM allowed_emails WHERE email = ?", (email,))
+    cursor.execute("SELECT nome FROM allowed_emails WHERE email = %s", (email,))
     result = cursor.fetchone()
     cursor.close()
     return_connection(conn)
@@ -423,10 +426,7 @@ def atualizar_avatar_usuario(email, avatar_file):
     """Atualiza o avatar de um usuário"""
     conn = get_connection()
     cursor = conn.cursor()
-    if DB_TYPE == 'postgresql':
-        cursor.execute("UPDATE allowed_emails SET avatar_file = %s WHERE email = %s", (avatar_file, email))
-    else:
-        cursor.execute("UPDATE allowed_emails SET avatar_file = ? WHERE email = ?", (avatar_file, email))
+    cursor.execute("UPDATE allowed_emails SET avatar_file = %s WHERE email = %s", (avatar_file, email))
     conn.commit()
     cursor.close()
     return_connection(conn)
@@ -453,7 +453,7 @@ def get_todos_usuarios_detalhes():
             'nome': row[2] if row[2] else row[0].split('@')[0].replace('.', ' ').title(),
             'avatar_file': row[3],
             'added_by': row[4] if row[4] else 'Sistema',
-            'added_at': row[5][:10] if row[5] else 'N/A'
+            'added_at': str(row[5])[:10] if row[5] else 'N/A'
         })
     return usuarios
 
@@ -499,23 +499,14 @@ def importar_materiais_do_excel(excel_path=None):
                 url = titulo if "http" in titulo else ""
                 autor = str(row['Created by']) if pd.notna(row['Created by']) else "Sistema"
                 
-                if DB_TYPE == 'postgresql':
-                    cursor.execute("SELECT id FROM materiais WHERE titulo = %s", (titulo,))
-                else:
-                    cursor.execute("SELECT id FROM materiais WHERE titulo = ?", (titulo,))
+                cursor.execute("SELECT id FROM materiais WHERE titulo = %s", (titulo,))
                 existe = cursor.fetchone()
                 
                 if not existe:
-                    if DB_TYPE == 'postgresql':
-                        cursor.execute("""
-                            INSERT INTO materiais (titulo, tipo, topicos, descricao, url, autor, autor_email)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """, (titulo, tipo, topicos, descricao, url, autor, "system@aehub.com"))
-                    else:
-                        cursor.execute("""
-                            INSERT INTO materiais (titulo, tipo, topicos, descricao, url, autor, autor_email)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (titulo, tipo, topicos, descricao, url, autor, "system@aehub.com"))
+                    cursor.execute("""
+                        INSERT INTO materiais (titulo, tipo, topicos, descricao, url, autor, autor_email)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """, (titulo, tipo, topicos, descricao, url, autor, "system@aehub.com"))
                     contador += 1
         
         conn.commit()
@@ -540,16 +531,10 @@ def salvar_ae_mes_historico(email, nome, pontuacao, contribuicoes, definido_por)
     mes = datetime.now().month
     ano = datetime.now().year
     
-    if DB_TYPE == 'postgresql':
-        cursor.execute("""
-            INSERT INTO ae_mes_historico (email, nome, mes, ano, pontuacao, contribuicoes, definido_por)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (email, nome, mes, ano, pontuacao, contribuicoes, definido_por))
-    else:
-        cursor.execute("""
-            INSERT INTO ae_mes_historico (email, nome, mes, ano, pontuacao, contribuicoes, definido_por)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (email, nome, mes, ano, pontuacao, contribuicoes, definido_por))
+    cursor.execute("""
+        INSERT INTO ae_mes_historico (email, nome, mes, ano, pontuacao, contribuicoes, definido_por)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+    """, (email, nome, mes, ano, pontuacao, contribuicoes, definido_por))
     
     conn.commit()
     cursor.close()
@@ -573,82 +558,8 @@ def get_historico_ae_mes():
     return_connection(conn)
     return resultados
 
-    # ============================================
-    # TABELAS DO ROADMAP
-    # ============================================
-    
-    # Tabela de progresso dos pilares
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS roadmap_progresso (
-            id SERIAL PRIMARY KEY,
-            pilar TEXT NOT NULL,
-            progresso INTEGER NOT NULL,
-            meta TEXT,
-            atualizado_por TEXT,
-            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Tabela de entregas
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS roadmap_entregas (
-            id SERIAL PRIMARY KEY,
-            titulo TEXT NOT NULL,
-            responsavel TEXT NOT NULL,
-            prazo TEXT NOT NULL,
-            prioridade TEXT NOT NULL,
-            status TEXT DEFAULT 'pendente',
-            criado_por TEXT,
-            data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Tabela de fases do cronograma
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS roadmap_fases (
-            id SERIAL PRIMARY KEY,
-            fase TEXT NOT NULL,
-            status TEXT NOT NULL,
-            data_prevista TEXT NOT NULL,
-            entregas TEXT,
-            data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Inserir dados iniciais se não existirem
-    cursor.execute("SELECT COUNT(*) FROM roadmap_progresso")
-    if cursor.fetchone()[0] == 0:
-        progressos_iniciais = [
-            ("Pilar A: Casos de Uso", 75, "50 casos até Jun/25", "system"),
-            ("Pilar B: Boas Práticas", 60, "8 checklists completos", "system"),
-            ("Pilar C: Stack de Ferramentas", 85, "50+ ferramentas catalogadas", "system"),
-            ("Pilar D: Biblioteca", 40, "200+ materiais catalogados", "system"),
-            ("Pilar E: Treinamento", 35, "20 pílulas + playlist", "system"),
-            ("Pilar F: Gamificação", 70, "Sistema de pontos e badges", "system")
-        ]
-        for pilar, prog, meta, autor in progressos_iniciais:
-            cursor.execute("""
-                INSERT INTO roadmap_progresso (pilar, progresso, meta, atualizado_por)
-                VALUES (%s, %s, %s, %s)
-            """, (pilar, prog, meta, autor))
-    
-    cursor.execute("SELECT COUNT(*) FROM roadmap_fases")
-    if cursor.fetchone()[0] == 0:
-        fases_iniciais = [
-            ("Fase 1: Crowdsourcing", "✅ Concluído", "26/03/2025", "18 cases coletados"),
-            ("Fase 2: Curadoria", "🔄 Em andamento", "Abril 2025", "Categorização com IA, agrupamento por temas"),
-            ("Fase 3: Documentação", "📝 Planejada", "Maio 2025", "Consolidação do Guia de Estilo, templates"),
-            ("Fase 4: Biblioteca", "🚀 Iniciada", "Junho 2025", "Importação de 100+ materiais, busca integrada"),
-            ("Fase 5: Gamificação", "📅 Agendada", "Julho 2025", "Sistema de pontos, badges, ranking")
-        ]
-        for fase, status, data, entregas in fases_iniciais:
-            cursor.execute("""
-                INSERT INTO roadmap_fases (fase, status, data_prevista, entregas)
-                VALUES (%s, %s, %s, %s)
-            """, (fase, status, data, entregas))
-
 # ============================================
 # INICIALIZAR BANCO
 # ============================================
 init_database()
-print(f"✅ Banco inicializado - Modo: {DB_TYPE.upper()}")
+print("✅ Banco PostgreSQL pronto para uso!")

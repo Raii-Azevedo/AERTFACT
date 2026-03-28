@@ -6,7 +6,7 @@ import pandas as pd
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.menu import render_sidebar
 from allowed_emails import can_edit, is_admin
-from database import get_connection, return_connection, DB_TYPE
+from database import get_connection, return_connection
 
 if not st.session_state.get("authenticated", False):
     st.switch_page("app.py")
@@ -23,12 +23,12 @@ can_edit_content = can_edit(user_email)
 st.title("📊 Casos de Uso e Soluções")
 st.markdown("*Repositório de soluções reais implementadas pelo time*")
 
-def get_placeholder():
-    return '%s' if DB_TYPE == 'postgresql' else '?'
-
 # Inicializar estado para formulário
 if "show_form" not in st.session_state:
     st.session_state.show_form = False
+
+if "detalhes_abertos" not in st.session_state:
+    st.session_state.detalhes_abertos = None
 
 # ============================================
 # FUNÇÕES PARA GERENCIAR CASOS NO BANCO
@@ -87,13 +87,12 @@ def adicionar_caso(titulo, contexto, tecnologia, descricao, resultado, tags, aut
     """Adiciona um novo caso de uso"""
     conn = get_connection()
     cursor = conn.cursor()
-    placeholder = get_placeholder()
     
     tags_str = ', '.join(tags) if isinstance(tags, list) else tags
     
-    cursor.execute(f"""
+    cursor.execute("""
         INSERT INTO casos_uso (titulo, contexto, tecnologia, descricao, resultado, tags, autor, autor_email)
-        VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """, (titulo, contexto, tecnologia, descricao, resultado, tags_str, autor, autor_email))
     
     conn.commit()
@@ -104,8 +103,55 @@ def remover_caso(caso_id):
     """Remove um caso de uso"""
     conn = get_connection()
     cursor = conn.cursor()
-    placeholder = get_placeholder()
-    cursor.execute(f"DELETE FROM casos_uso WHERE id = {placeholder}", (caso_id,))
+    cursor.execute("DELETE FROM casos_uso WHERE id = %s", (caso_id,))
+    conn.commit()
+    cursor.close()
+    return_connection(conn)
+
+# ============================================
+# FUNÇÕES PARA FEEDBACK
+# ============================================
+
+def get_media_avaliacao(caso_id):
+    """Retorna a média de avaliações de um caso"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT COALESCE(AVG(avaliacao), 0) as media, COUNT(*) as total 
+        FROM feedback_casos 
+        WHERE caso_id = %s
+    """, (caso_id,))
+    resultado = cursor.fetchone()
+    cursor.close()
+    return_connection(conn)
+    return resultado[0] if resultado else 0, resultado[1] if resultado else 0
+
+def ja_avaliou(caso_id, usuario_email):
+    """Verifica se o usuário já avaliou este caso"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id FROM feedback_casos 
+        WHERE caso_id = %s AND usuario_email = %s
+    """, (caso_id, usuario_email))
+    resultado = cursor.fetchone()
+    cursor.close()
+    return_connection(conn)
+    return resultado is not None
+
+def salvar_feedback(caso_id, usuario_email, avaliacao, utilidade, comentario):
+    """Salva o feedback de um caso"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO feedback_casos (caso_id, usuario_email, avaliacao, utilidade, comentario)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (caso_id, usuario_email) DO UPDATE SET 
+            avaliacao = EXCLUDED.avaliacao,
+            utilidade = EXCLUDED.utilidade,
+            comentario = EXCLUDED.comentario,
+            data_criacao = CURRENT_TIMESTAMP
+    """, (caso_id, usuario_email, avaliacao, utilidade, comentario))
     conn.commit()
     cursor.close()
     return_connection(conn)
@@ -160,7 +206,7 @@ with col2:
             st.session_state.show_form = not st.session_state.show_form
 
 # ============================================
-# FORMULÁRIO PARA NOVO CASO (COM INPUT LIVRE - CORRIGIDO)
+# FORMULÁRIO PARA NOVO CASO (COM INPUT LIVRE)
 # ============================================
 if st.session_state.get("show_form", False) and can_edit_content:
     
@@ -170,12 +216,10 @@ if st.session_state.get("show_form", False) and can_edit_content:
     
     col1, col2 = st.columns(2)
     
-    # Variáveis para armazenar valores
     contexto_selecionado = None
     tecnologia_selecionada = None
     
     with col1:
-        # Contexto com input livre
         contextos_sugeridos = contextos_existentes if contextos_existentes else ["Performance", "Conectividade", "UX/UI", "Governança", "Segurança"]
         contexto_opcao = st.selectbox(
             "Contexto*",
@@ -190,7 +234,6 @@ if st.session_state.get("show_form", False) and can_edit_content:
             contexto_selecionado = contexto_opcao
     
     with col2:
-        # Tecnologia com input livre
         tecnologias_sugeridas = tecnologias_existentes if tecnologias_existentes else ["DAX", "Python", "SQL", "Power BI", "Databricks"]
         tecnologia_opcao = st.selectbox(
             "Tecnologia*",
@@ -204,7 +247,6 @@ if st.session_state.get("show_form", False) and can_edit_content:
         else:
             tecnologia_selecionada = tecnologia_opcao
     
-    # Descrição e resultado
     descricao = st.text_area("Descrição da Solução*", height=100, 
                               placeholder="Descreva o problema enfrentado e como foi abordado...", key="descricao_input")
     resultado = st.text_area("Resultados Alcançados*", height=100,
@@ -212,7 +254,6 @@ if st.session_state.get("show_form", False) and can_edit_content:
     
     tags_input = st.text_input("Tags (separadas por vírgula)", placeholder="ex: otimização, performance, python", key="tags_input")
     
-    # Botões
     col1, col2 = st.columns(2)
     with col1:
         submitted = st.button("💾 Salvar Caso", use_container_width=True, type="primary", key="submit_caso")
@@ -222,7 +263,6 @@ if st.session_state.get("show_form", False) and can_edit_content:
             st.rerun()
     
     if submitted:
-        # Validar campos
         if not titulo:
             st.warning("⚠️ Preencha o título")
         elif not descricao:
@@ -253,14 +293,10 @@ todos_casos = get_casos_do_banco()
 # Aplicar filtros
 casos_filtrados = []
 for caso in todos_casos:
-    # Filtro de contexto
     if "Todos" not in contexto_filtro and caso['contexto'] not in contexto_filtro:
         continue
-    
-    # Filtro de tecnologia
     if "Todos" not in tecnologia_filtro and caso['tecnologia'] not in tecnologia_filtro:
         continue
-    
     casos_filtrados.append(caso)
 
 # ============================================
@@ -268,27 +304,23 @@ for caso in todos_casos:
 # ============================================
 st.subheader(f"📖 {len(casos_filtrados)} casos encontrados")
 
-# Estado para controlar qual caso está com detalhes abertos
-if "detalhes_abertos" not in st.session_state:
-    st.session_state.detalhes_abertos = None
-
 if casos_filtrados:
     for caso in casos_filtrados:
         with st.container(border=True):
-            # Linha principal do card
+            # ============================================
+            # CABEÇALHO DO CARD
+            # ============================================
             col1, col2 = st.columns([4, 1])
             
             with col1:
                 st.markdown(f"### {caso['titulo']}")
                 st.markdown(f"**📌 Contexto:** {caso['contexto']} | **🛠️ Tecnologia:** {caso['tecnologia']}")
                 
-                # Descrição resumida
                 if len(caso['descricao']) > 200:
                     st.markdown(f"**📝 Descrição:** {caso['descricao'][:200]}...")
                 else:
                     st.markdown(f"**📝 Descrição:** {caso['descricao']}")
                 
-                # Resultados resumidos
                 if len(caso['resultado']) > 150:
                     st.markdown(f"**🎯 Resultados:** {caso['resultado'][:150]}...")
                 else:
@@ -313,7 +345,70 @@ if casos_filtrados:
                     st.session_state.detalhes_abertos = caso['id']
                     st.rerun()
             
-            # Se este caso é o que tem detalhes abertos, mostrar detalhes em tela cheia
+            # ============================================
+            # SEÇÃO DE FEEDBACK E AVALIAÇÃO
+            # ============================================
+            st.markdown("---")
+            
+            # Buscar média de avaliações
+            media, total_avaliacoes = get_media_avaliacao(caso['id'])
+            
+            col_estrelas, col_info = st.columns([1, 3])
+            with col_estrelas:
+                if total_avaliacoes > 0:
+                    estrelas = "⭐" * min(5, round(media))
+                    st.markdown(f"### {estrelas}")
+                else:
+                    st.markdown("### ⭐")
+            
+            with col_info:
+                if total_avaliacoes > 0:
+                    st.caption(f"📊 {media:.1f} de 5 estrelas ({total_avaliacoes} avaliações)")
+                else:
+                    st.caption("📊 Seja o primeiro a avaliar este caso!")
+            
+            # Verificar se usuário já avaliou
+            usuario_ja_avaliou = ja_avaliou(caso['id'], user_email)
+            
+            if not usuario_ja_avaliou:
+                with st.expander("⭐ Avaliar este caso", expanded=False):
+                    col_rating, col_utilidade, col_comentario = st.columns([1, 1, 2])
+                    
+                    with col_rating:
+                        avaliacao = st.select_slider(
+                            "Nota",
+                            options=[1, 2, 3, 4, 5],
+                            value=3,
+                            key=f"rating_{caso['id']}"
+                        )
+                    
+                    with col_utilidade:
+                        utilidade = st.selectbox(
+                            "Utilidade",
+                            ["Muito útil", "Útil", "Pouco útil"],
+                            key=f"utilidade_{caso['id']}"
+                        )
+                    
+                    with col_comentario:
+                        comentario = st.text_input(
+                            "Comentário (opcional)", 
+                            key=f"comentario_{caso['id']}",
+                            placeholder="Deixe seu feedback sobre este caso..."
+                        )
+                    
+                    if st.button("📝 Enviar feedback", key=f"feedback_{caso['id']}"):
+                        try:
+                            salvar_feedback(caso['id'], user_email, avaliacao, utilidade, comentario)
+                            st.success("✅ Feedback enviado! Obrigado por contribuir.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao enviar feedback: {e}")
+            else:
+                st.info("✅ Você já avaliou este caso. Obrigado!")
+            
+            # ============================================
+            # DETALHES COMPLETOS (EXPANDIDO)
+            # ============================================
             if st.session_state.detalhes_abertos == caso['id']:
                 st.markdown("---")
                 with st.container(border=True):
@@ -327,7 +422,6 @@ if casos_filtrados:
                     
                     st.markdown("---")
                     
-                    # Organizar detalhes em colunas
                     col_info1, col_info2 = st.columns(2)
                     with col_info1:
                         st.markdown(f"**📌 Título:** {caso['titulo']}")
@@ -350,6 +444,33 @@ if casos_filtrados:
                         st.markdown("### 🏷️ Tags")
                         st.markdown(" ".join([f"`{tag}`" for tag in caso['tags']]))
                     
+                    # Mostrar feedbacks de outros usuários
+                    st.markdown("---")
+                    st.markdown("### 💬 Feedbacks da Comunidade")
+                    
+                    conn = get_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT usuario_email, avaliacao, utilidade, comentario, data_criacao
+                        FROM feedback_casos 
+                        WHERE caso_id = %s 
+                        ORDER BY data_criacao DESC
+                        LIMIT 5
+                    """, (caso['id'],))
+                    feedbacks = cursor.fetchall()
+                    cursor.close()
+                    return_connection(conn)
+                    
+                    if feedbacks:
+                        for fb in feedbacks:
+                            with st.container():
+                                estrelas_fb = "⭐" * fb[1]
+                                st.markdown(f"**{estrelas_fb}** - *{fb[3][:100] if fb[3] else 'Sem comentário'}*")
+                                st.caption(f"👤 {fb[0].split('@')[0]} | {fb[2]} | 📅 {str(fb[4])[:10]}")
+                                st.markdown("---")
+                    else:
+                        st.info("Nenhum feedback ainda. Seja o primeiro a comentar!")
+                    
                     st.markdown("---")
                     st.caption("💡 *Este caso foi contribuído para o conhecimento do time.*")
 else:
@@ -357,7 +478,7 @@ else:
     
     if not todos_casos:
         st.info("💡 Seja o primeiro a contribuir! Clique em 'Novo Caso' para adicionar sua solução.")
-        
+
 # ============================================
 # ESTATÍSTICAS DINÂMICAS
 # ============================================
@@ -392,7 +513,6 @@ if todos_casos:
     st.divider()
     st.subheader("📈 Distribuição por Contexto")
     
-    # Preparar dados para o gráfico (com verificação se há dados)
     if todos_casos:
         df_dist = pd.DataFrame([(c['contexto'], 1) for c in todos_casos], columns=['Contexto', 'Contagem'])
         df_dist = df_dist.groupby('Contexto').count().reset_index()
