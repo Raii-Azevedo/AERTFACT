@@ -140,21 +140,35 @@ def ja_avaliou(caso_id, usuario_email):
     return resultado is not None
 
 def salvar_feedback(caso_id, usuario_email, avaliacao, utilidade, comentario):
-    """Salva o feedback de um caso"""
+    """Salva o feedback de um caso - versão corrigida para PostgreSQL"""
     conn = get_connection()
     cursor = conn.cursor()
+    
+    # Verificar se já existe
     cursor.execute("""
-        INSERT INTO feedback_casos (caso_id, usuario_email, avaliacao, utilidade, comentario)
-        VALUES (%s, %s, %s, %s, %s)
-        ON CONFLICT (caso_id, usuario_email) DO UPDATE SET 
-            avaliacao = EXCLUDED.avaliacao,
-            utilidade = EXCLUDED.utilidade,
-            comentario = EXCLUDED.comentario,
-            data_criacao = CURRENT_TIMESTAMP
-    """, (caso_id, usuario_email, avaliacao, utilidade, comentario))
+        SELECT id FROM feedback_casos 
+        WHERE caso_id = %s AND usuario_email = %s
+    """, (caso_id, usuario_email))
+    existe = cursor.fetchone()
+    
+    if existe:
+        # Atualizar existente
+        cursor.execute("""
+            UPDATE feedback_casos 
+            SET avaliacao = %s, utilidade = %s, comentario = %s, data_criacao = CURRENT_TIMESTAMP
+            WHERE caso_id = %s AND usuario_email = %s
+        """, (avaliacao, utilidade, comentario, caso_id, usuario_email))
+    else:
+        # Inserir novo
+        cursor.execute("""
+            INSERT INTO feedback_casos (caso_id, usuario_email, avaliacao, utilidade, comentario)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (caso_id, usuario_email, avaliacao, utilidade, comentario))
+    
     conn.commit()
     cursor.close()
     return_connection(conn)
+    
 
 # ============================================
 # FILTROS DINÂMICOS BASEADOS NO BANCO

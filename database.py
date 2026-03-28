@@ -254,6 +254,7 @@ def init_database():
         )
     ''')
 
+    # Tabela de feedback/avaliação de casos
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS feedback_casos (
             id SERIAL PRIMARY KEY,
@@ -265,6 +266,13 @@ def init_database():
             data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+# Adicionar constraint única para evitar múltiplas avaliações do mesmo usuário no mesmo caso
+    cursor.execute('''
+        ALTER TABLE feedback_casos 
+        ADD CONSTRAINT unique_caso_usuario 
+        UNIQUE (caso_id, usuario_email)
+''')
 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS casos_destaque (
